@@ -131,7 +131,7 @@ const Dashboard = () => {
             { label: "Dashboard", href: "/dashboard", icon: TrendingUp, active: true },
             { label: "Problems", href: "/problems", icon: Code2 },
             { label: "Battles", href: "/battles", icon: Swords },
-            { label: "Editor", href: "/editor", icon: Terminal },
+            { label: "Leaderboard", href: "/leaderboard", icon: Trophy },
             { label: "Feed", href: "/feed", icon: MessageSquare },
           ].map((item) => (
             <Link key={item.label} to={item.href}>
