@@ -512,7 +512,7 @@ const EditorPage = () => {
       {/* Top bar */}
       <header className="h-14 border-b border-border/60 bg-card/50 backdrop-blur-xl flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
-          <Link to={problemId ? "/problems" : "/dashboard"} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <Link to={battleId ? "/battles" : problemId ? "/problems" : "/dashboard"} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="h-5 w-px bg-border" />
@@ -523,6 +523,18 @@ const EditorPage = () => {
           <div className="h-5 w-px bg-border" />
           <span className="text-xs text-muted-foreground font-mono hidden sm:inline">{problemTitle}</span>
           <Badge variant="secondary" className="bg-warm/20 text-warm text-[10px] hidden sm:flex">{problemDifficulty}</Badge>
+          {battleId && battleTimeLeft && (
+            <Badge variant="outline" className={`gap-1 text-[10px] ${battleTimeLeft === "Time's up!" ? "border-destructive/40 text-destructive" : "border-accent/40 text-accent animate-pulse"}`}>
+              <Timer className="h-3 w-3" />
+              {battleTimeLeft}
+            </Badge>
+          )}
+          {battleId && (
+            <Badge className="bg-accent/20 text-accent text-[10px] gap-1">
+              <Swords className="h-3 w-3" />
+              Battle Mode
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
