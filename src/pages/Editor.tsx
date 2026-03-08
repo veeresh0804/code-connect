@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import Editor from "@monaco-editor/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -22,6 +22,8 @@ import {
   X,
   Save,
   FlaskConical,
+  Timer,
+  Swords,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -84,6 +86,7 @@ const languages: Record<Language, LanguageConfig> = {
 
 const EditorPage = () => {
   const { user } = useAuthContext();
+  const navigate = useNavigate();
   const [language, setLanguage] = useState<Language>("python");
   const [code, setCode] = useState(languages.python.defaultCode);
   const [output, setOutput] = useState<string>("");
@@ -94,6 +97,7 @@ const EditorPage = () => {
   // Problem state
   const [searchParams] = useSearchParams();
   const problemId = searchParams.get("problem");
+  const battleId = searchParams.get("battle");
   const [problemTitle, setProblemTitle] = useState("Maximum Subarray");
   const [problemDifficulty, setProblemDifficulty] = useState("Medium");
   const [problemDescription, setProblemDescription] = useState(
@@ -117,6 +121,34 @@ const EditorPage = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastError, setLastError] = useState("");
 
+  // Battle mode state
+  const [battleTimeLeft, setBattleTimeLeft] = useState<string>("");
+  const [battleTimeLimitSec, setBattleTimeLimitSec] = useState(900);
+  const [battleStartedAt, setBattleStartedAt] = useState<string | null>(null);
+  const [battleEnded, setBattleEnded] = useState(false);
+  const [submittingBattle, setSubmittingBattle] = useState(false);
+  const battleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Battle timer
+  useEffect(() => {
+    if (!battleId || !battleStartedAt) return;
+    battleTimerRef.current = setInterval(() => {
+      const start = new Date(battleStartedAt).getTime();
+      const end = start + battleTimeLimitSec * 1000;
+      const remaining = Math.max(0, end - Date.now());
+      if (remaining <= 0) {
+        setBattleTimeLeft("Time's up!");
+        setBattleEnded(true);
+        if (battleTimerRef.current) clearInterval(battleTimerRef.current);
+        return;
+      }
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      setBattleTimeLeft(`${mins}:${secs.toString().padStart(2, "0")}`);
+    }, 1000);
+    return () => { if (battleTimerRef.current) clearInterval(battleTimerRef.current); };
+  }, [battleId, battleStartedAt, battleTimeLimitSec]);
+
   // Load problem from database
   useEffect(() => {
     if (problemId) {
@@ -137,6 +169,24 @@ const EditorPage = () => {
       loadProblem();
     }
   }, [problemId]);
+
+  // Load battle info
+  useEffect(() => {
+    if (!battleId) return;
+    const loadBattle = async () => {
+      const { data } = await supabase
+        .from("coding_battles")
+        .select("*")
+        .eq("id", battleId)
+        .single();
+      if (data) {
+        setBattleStartedAt(data.started_at);
+        setBattleTimeLimitSec(data.time_limit_seconds);
+        if (data.status === "completed") setBattleEnded(true);
+      }
+    };
+    loadBattle();
+  }, [battleId]);
 
   const handleLanguageChange = (lang: Language) => {
     setLanguage(lang);
@@ -301,6 +351,105 @@ const EditorPage = () => {
     }
   }, [user, code, language, approach, output, problemId, problemTitle, problemDifficulty, testResults]);
 
+  // Battle submit
+  const handleBattleSubmit = useCallback(async () => {
+    if (!user || !battleId) return;
+    setSubmittingBattle(true);
+
+    try {
+      // Run tests first
+      const results: TestResult[] = [];
+      for (const tc of testCases) {
+        try {
+          const { data, error } = await supabase.functions.invoke("code-runner", {
+            body: { code, language },
+          });
+          if (error) throw error;
+          const actual = (data.output || data.error || "").trim();
+          const expected = tc.expected.trim();
+          const passed = actual.includes(expected) || expected.includes(actual);
+          results.push({ input: tc.input, expected, actual, passed });
+        } catch {
+          results.push({ input: tc.input, expected: tc.expected, actual: "Error", passed: false });
+        }
+      }
+
+      const allPassed = results.length > 0 && results.every((r) => r.passed);
+
+      // Get current battle to check roles
+      const { data: battle } = await supabase
+        .from("coding_battles")
+        .select("*")
+        .eq("id", battleId)
+        .single();
+
+      if (!battle) throw new Error("Battle not found");
+
+      const isChallenger = battle.challenger_id === user.id;
+      const updateData: Record<string, any> = {};
+
+      if (isChallenger) {
+        updateData.challenger_code = code;
+        updateData.challenger_finished_at = new Date().toISOString();
+        updateData.challenger_passed = allPassed;
+      } else {
+        updateData.opponent_code = code;
+        updateData.opponent_finished_at = new Date().toISOString();
+        updateData.opponent_passed = allPassed;
+      }
+
+      // Check if opponent already finished to determine winner
+      const opponentFinished = isChallenger ? battle.opponent_finished_at : battle.challenger_finished_at;
+      const opponentPassed = isChallenger ? battle.opponent_passed : battle.challenger_passed;
+
+      if (opponentFinished) {
+        // Both done - determine winner
+        let winnerId: string | null = null;
+        if (allPassed && !opponentPassed) {
+          winnerId = user.id;
+        } else if (!allPassed && opponentPassed) {
+          winnerId = isChallenger ? battle.opponent_id : battle.challenger_id;
+        } else if (allPassed && opponentPassed) {
+          // Both passed - faster wins
+          const myTime = new Date().getTime();
+          const theirTime = new Date(opponentFinished).getTime();
+          winnerId = myTime <= theirTime ? user.id : (isChallenger ? battle.opponent_id : battle.challenger_id);
+        }
+        updateData.status = "completed";
+        updateData.ended_at = new Date().toISOString();
+        updateData.winner_id = winnerId;
+
+        // Update profiles
+        if (winnerId) {
+          const loserId = winnerId === battle.challenger_id ? battle.opponent_id : battle.challenger_id;
+          const { data: wp } = await supabase.from("profiles").select("challenges_won").eq("user_id", winnerId).single();
+          const { data: lp } = await supabase.from("profiles").select("challenges_lost").eq("user_id", loserId).single();
+          if (wp) await supabase.from("profiles").update({ challenges_won: (wp.challenges_won || 0) + 1 }).eq("user_id", winnerId);
+          if (lp) await supabase.from("profiles").update({ challenges_lost: (lp.challenges_lost || 0) + 1 }).eq("user_id", loserId);
+        }
+      }
+
+      const { error } = await supabase.from("coding_battles").update(updateData).eq("id", battleId);
+      if (error) throw error;
+
+      toast.success(allPassed ? "Solution submitted! All tests passed! 🎉" : "Solution submitted. Some tests failed.");
+      setBattleEnded(true);
+
+      // Post activity
+      await supabase.from("activities").insert({
+        user_id: user.id,
+        activity_type: allPassed ? "challenge_won" : "challenge_lost",
+        title: `Battle: "${problemTitle}"`,
+        description: allPassed ? `Passed all tests in battle mode!` : `Attempted battle on "${problemTitle}"`,
+        points: allPassed ? 50 : 0,
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit battle solution");
+    } finally {
+      setSubmittingBattle(false);
+    }
+  }, [user, battleId, code, language, testCases, problemTitle]);
+
   const handleReset = () => {
     setCode(languages[language].defaultCode);
     setOutput("");
@@ -363,7 +512,7 @@ const EditorPage = () => {
       {/* Top bar */}
       <header className="h-14 border-b border-border/60 bg-card/50 backdrop-blur-xl flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
-          <Link to={problemId ? "/problems" : "/dashboard"} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <Link to={battleId ? "/battles" : problemId ? "/problems" : "/dashboard"} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="h-5 w-px bg-border" />
@@ -374,6 +523,18 @@ const EditorPage = () => {
           <div className="h-5 w-px bg-border" />
           <span className="text-xs text-muted-foreground font-mono hidden sm:inline">{problemTitle}</span>
           <Badge variant="secondary" className="bg-warm/20 text-warm text-[10px] hidden sm:flex">{problemDifficulty}</Badge>
+          {battleId && battleTimeLeft && (
+            <Badge variant="outline" className={`gap-1 text-[10px] ${battleTimeLeft === "Time's up!" ? "border-destructive/40 text-destructive" : "border-accent/40 text-accent animate-pulse"}`}>
+              <Timer className="h-3 w-3" />
+              {battleTimeLeft}
+            </Badge>
+          )}
+          {battleId && (
+            <Badge className="bg-accent/20 text-accent text-[10px] gap-1">
+              <Swords className="h-3 w-3" />
+              Battle Mode
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -424,6 +585,18 @@ const EditorPage = () => {
             {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             {isRunning ? "Running..." : "Run"}
           </Button>
+
+          {battleId && (
+            <Button
+              size="sm"
+              className="h-8 gap-1.5 text-xs px-4 bg-accent text-accent-foreground hover:bg-accent/90"
+              onClick={handleBattleSubmit}
+              disabled={submittingBattle || battleEnded || !editorUnlocked}
+            >
+              {submittingBattle ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Swords className="h-3.5 w-3.5" />}
+              {battleEnded ? "Submitted" : "Submit Battle"}
+            </Button>
+          )}
         </div>
       </header>
 

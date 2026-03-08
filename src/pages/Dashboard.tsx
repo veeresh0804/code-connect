@@ -130,6 +130,7 @@ const Dashboard = () => {
           {[
             { label: "Dashboard", href: "/dashboard", icon: TrendingUp, active: true },
             { label: "Problems", href: "/problems", icon: Code2 },
+            { label: "Battles", href: "/battles", icon: Swords },
             { label: "Editor", href: "/editor", icon: Terminal },
             { label: "Feed", href: "/feed", icon: MessageSquare },
           ].map((item) => (
@@ -357,6 +358,13 @@ const Dashboard = () => {
                   <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
                     <Terminal className="h-4 w-4 text-primary" />
                     Open Editor
+                    <ArrowRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                </Link>
+                <Link to="/battles">
+                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
+                    <Swords className="h-4 w-4 text-accent" />
+                    Coding Battles
                     <ArrowRight className="h-4 w-4 ml-auto" />
                   </Button>
                 </Link>
