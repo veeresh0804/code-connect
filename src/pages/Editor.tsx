@@ -86,6 +86,7 @@ const languages: Record<Language, LanguageConfig> = {
 
 const EditorPage = () => {
   const { user } = useAuthContext();
+  const navigate = useNavigate();
   const [language, setLanguage] = useState<Language>("python");
   const [code, setCode] = useState(languages.python.defaultCode);
   const [output, setOutput] = useState<string>("");
@@ -96,6 +97,7 @@ const EditorPage = () => {
   // Problem state
   const [searchParams] = useSearchParams();
   const problemId = searchParams.get("problem");
+  const battleId = searchParams.get("battle");
   const [problemTitle, setProblemTitle] = useState("Maximum Subarray");
   const [problemDifficulty, setProblemDifficulty] = useState("Medium");
   const [problemDescription, setProblemDescription] = useState(
