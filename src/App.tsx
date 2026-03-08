@@ -13,6 +13,7 @@ import Signup from "./pages/Signup";
 import Feed from "./pages/Feed";
 import Problems from "./pages/Problems";
 import Battles from "./pages/Battles";
+import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
