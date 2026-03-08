@@ -2,3 +2,6 @@ project_id = "biyyugdhxqjrxdixydvo"
 
 [functions.debug-mentor]
 verify_jwt = false
+
+[functions.code-runner]
+verify_jwt = false
