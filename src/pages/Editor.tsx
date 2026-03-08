@@ -585,6 +585,18 @@ const EditorPage = () => {
             {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             {isRunning ? "Running..." : "Run"}
           </Button>
+
+          {battleId && (
+            <Button
+              size="sm"
+              className="h-8 gap-1.5 text-xs px-4 bg-accent text-accent-foreground hover:bg-accent/90"
+              onClick={handleBattleSubmit}
+              disabled={submittingBattle || battleEnded || !editorUnlocked}
+            >
+              {submittingBattle ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Swords className="h-3.5 w-3.5" />}
+              {battleEnded ? "Submitted" : "Submit Battle"}
+            </Button>
+          )}
         </div>
       </header>
 
