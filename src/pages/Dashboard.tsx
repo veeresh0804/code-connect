@@ -129,7 +129,8 @@ const Dashboard = () => {
         <nav className="hidden md:flex items-center gap-1">
           {[
             { label: "Dashboard", href: "/dashboard", icon: TrendingUp, active: true },
-            { label: "Editor", href: "/editor", icon: Code2 },
+            { label: "Problems", href: "/problems", icon: Code2 },
+            { label: "Editor", href: "/editor", icon: Terminal },
             { label: "Feed", href: "/feed", icon: MessageSquare },
           ].map((item) => (
             <Link key={item.label} to={item.href}>
@@ -345,10 +346,17 @@ const Dashboard = () => {
             {/* Quick Actions */}
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <div className="space-y-2">
-                <Link to="/editor">
+                <Link to="/problems">
                   <Button className="w-full glow-primary gap-2 justify-start" size="lg">
                     <Code2 className="h-4 w-4" />
-                    Solve a Problem
+                    Browse Problems
+                    <ArrowRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                </Link>
+                <Link to="/editor">
+                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
+                    <Terminal className="h-4 w-4 text-primary" />
+                    Open Editor
                     <ArrowRight className="h-4 w-4 ml-auto" />
                   </Button>
                 </Link>

@@ -20,6 +20,8 @@ import {
   Bot,
   Sparkles,
   X,
+  Save,
+  FlaskConical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,6 +47,18 @@ interface LanguageConfig {
   defaultCode: string;
 }
 
+interface TestCase {
+  input: string;
+  expected: string;
+}
+
+interface TestResult {
+  input: string;
+  expected: string;
+  actual: string;
+  passed: boolean;
+}
+
 const languages: Record<Language, LanguageConfig> = {
   python: {
     label: "Python",
@@ -68,20 +82,28 @@ const languages: Record<Language, LanguageConfig> = {
   },
 };
 
-const problemInfo = {
-  title: "Maximum Subarray",
-  difficulty: "Medium",
-  description: "Given an integer array nums, find the subarray with the largest sum, and return its sum.",
-};
-
 const EditorPage = () => {
-  const { user, profile } = useAuthContext();
+  const { user } = useAuthContext();
   const [language, setLanguage] = useState<Language>("python");
   const [code, setCode] = useState(languages.python.defaultCode);
   const [output, setOutput] = useState<string>("");
   const [isRunning, setIsRunning] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Problem state
+  const [searchParams] = useSearchParams();
+  const problemId = searchParams.get("problem");
+  const [problemTitle, setProblemTitle] = useState("Maximum Subarray");
+  const [problemDifficulty, setProblemDifficulty] = useState("Medium");
+  const [problemDescription, setProblemDescription] = useState(
+    "Given an integer array nums, find the subarray with the largest sum, and return its sum."
+  );
+  const [testCases, setTestCases] = useState<TestCase[]>([]);
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [isTesting, setIsTesting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [submissionSaved, setSubmissionSaved] = useState(false);
 
   // Thinking Mode state
   const [thinkingMode, setThinkingMode] = useState(true);
@@ -95,16 +117,7 @@ const EditorPage = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastError, setLastError] = useState("");
 
-  const handleLanguageChange = (lang: Language) => {
-    setLanguage(lang);
-    setCode(languages[lang].defaultCode);
-    setOutput("");
-  };
-
-  const [searchParams] = useSearchParams();
-  const problemId = searchParams.get("problem");
-
-  // Load problem from database if problem ID is in URL
+  // Load problem from database
   useEffect(() => {
     if (problemId) {
       const loadProblem = async () => {
@@ -114,18 +127,30 @@ const EditorPage = () => {
           .eq("id", problemId)
           .single();
         if (data && !error) {
-          problemInfo.title = data.title;
-          problemInfo.difficulty = data.difficulty;
-          problemInfo.description = data.description;
+          setProblemTitle(data.title);
+          setProblemDifficulty(data.difficulty);
+          setProblemDescription(data.description);
+          const cases = (data.test_cases as unknown as TestCase[]) || [];
+          setTestCases(cases);
         }
       };
       loadProblem();
     }
   }, [problemId]);
 
+  const handleLanguageChange = (lang: Language) => {
+    setLanguage(lang);
+    setCode(languages[lang].defaultCode);
+    setOutput("");
+    setTestResults([]);
+    setSubmissionSaved(false);
+  };
+
   const handleRun = useCallback(async () => {
     setIsRunning(true);
     setOutput(`$ Running ${languages[language].label}...\n`);
+    setTestResults([]);
+    setSubmissionSaved(false);
 
     try {
       const { data, error } = await supabase.functions.invoke("code-runner", {
@@ -155,11 +180,134 @@ const EditorPage = () => {
     }
   }, [language, code]);
 
+  const handleRunTests = useCallback(async () => {
+    if (testCases.length === 0) {
+      toast.info("No test cases available for this problem.");
+      return;
+    }
+
+    setIsTesting(true);
+    setTestResults([]);
+    setOutput(`$ Running ${testCases.length} test cases...\n`);
+
+    const results: TestResult[] = [];
+
+    for (const tc of testCases) {
+      try {
+        const { data, error } = await supabase.functions.invoke("code-runner", {
+          body: { code, language },
+        });
+
+        if (error) throw error;
+
+        const actual = (data.output || data.error || "").trim();
+        const expected = tc.expected.trim();
+        const passed = actual.includes(expected) || expected.includes(actual);
+
+        results.push({ input: tc.input, expected, actual, passed });
+      } catch {
+        results.push({ input: tc.input, expected: tc.expected, actual: "Error", passed: false });
+      }
+    }
+
+    setTestResults(results);
+    const passedCount = results.filter((r) => r.passed).length;
+    const allPassed = passedCount === results.length;
+
+    let outputStr = `$ Test Results: ${passedCount}/${results.length} passed\n\n`;
+    results.forEach((r, i) => {
+      outputStr += `${r.passed ? "✓" : "✗"} Test ${i + 1}: Input: ${r.input}\n`;
+      outputStr += `  Expected: ${r.expected}\n`;
+      outputStr += `  Got:      ${r.actual}\n\n`;
+    });
+    outputStr += allPassed ? "\n🎉 All test cases passed!" : "\n⚠ Some test cases failed.";
+
+    setOutput(outputStr);
+    setLastError(allPassed ? "" : "Some test cases failed");
+    setIsTesting(false);
+
+    if (allPassed) {
+      toast.success("All test cases passed! 🎉");
+    }
+  }, [code, language, testCases]);
+
+  const handleSaveSubmission = useCallback(async () => {
+    if (!user) {
+      toast.error("Please log in to save your submission.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const allPassed = testResults.length > 0 && testResults.every((r) => r.passed);
+      const status = allPassed ? "accepted" : testResults.length > 0 ? "failed" : "pending";
+      const points = allPassed
+        ? problemDifficulty === "Easy" ? 10 : problemDifficulty === "Medium" ? 25 : 50
+        : 0;
+
+      const { error } = await supabase.from("submissions").insert({
+        user_id: user.id,
+        problem_id: problemId || undefined,
+        code,
+        language,
+        approach,
+        status,
+        output: output.slice(0, 2000),
+        points_earned: points,
+      });
+
+      if (error) throw error;
+
+      // Update profile stats if accepted
+      if (allPassed && user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("problems_solved, total_points")
+          .eq("user_id", user.id)
+          .single();
+
+        if (profile) {
+          await supabase
+            .from("profiles")
+            .update({
+              problems_solved: (profile.problems_solved || 0) + 1,
+              total_points: (profile.total_points || 0) + points,
+              last_solved_at: new Date().toISOString(),
+            })
+            .eq("user_id", user.id);
+        }
+
+        // Post activity
+        await supabase.from("activities").insert({
+          user_id: user.id,
+          activity_type: "solve",
+          title: `Solved "${problemTitle}"`,
+          description: `Solved in ${language} and earned ${points} points`,
+          points,
+        });
+      }
+
+      setSubmissionSaved(true);
+      toast.success(
+        allPassed
+          ? `Submission saved! +${points} points 🎉`
+          : "Submission saved."
+      );
+    } catch (err: any) {
+      console.error("Save error:", err);
+      toast.error(err.message || "Failed to save submission");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [user, code, language, approach, output, problemId, problemTitle, problemDifficulty, testResults]);
+
   const handleReset = () => {
     setCode(languages[language].defaultCode);
     setOutput("");
     setDebugExplanation("");
     setLastError("");
+    setTestResults([]);
+    setSubmissionSaved(false);
   };
 
   const handleCopy = () => {
@@ -194,10 +342,7 @@ const EditorPage = () => {
         },
       });
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       setDebugExplanation(data.explanation || "Unable to analyze the error.");
     } catch (err: any) {
       console.error("Debug mentor error:", err);
@@ -210,14 +355,15 @@ const EditorPage = () => {
 
   const approachProgress = Math.min((approach.trim().length / minApproachLength) * 100, 100);
   const canUnlock = approach.trim().length >= minApproachLength;
-  const hasError = output.includes("Error") || output.includes("error") || output.includes("failed");
+  const hasError = output.includes("✗") || output.includes("Error") || output.includes("error");
+  const allTestsPassed = testResults.length > 0 && testResults.every((r) => r.passed);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top bar */}
       <header className="h-14 border-b border-border/60 bg-card/50 backdrop-blur-xl flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
-          <Link to="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <Link to={problemId ? "/problems" : "/dashboard"} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="h-5 w-px bg-border" />
@@ -226,8 +372,8 @@ const EditorPage = () => {
             <span className="font-bold text-sm">Arivu<span className="text-primary">Code</span></span>
           </div>
           <div className="h-5 w-px bg-border" />
-          <span className="text-xs text-muted-foreground font-mono hidden sm:inline">{problemInfo.title}</span>
-          <Badge variant="secondary" className="bg-warm/20 text-warm text-[10px] hidden sm:flex">{problemInfo.difficulty}</Badge>
+          <span className="text-xs text-muted-foreground font-mono hidden sm:inline">{problemTitle}</span>
+          <Badge variant="secondary" className="bg-warm/20 text-warm text-[10px] hidden sm:flex">{problemDifficulty}</Badge>
         </div>
 
         <div className="flex items-center gap-2">
@@ -267,9 +413,16 @@ const EditorPage = () => {
             {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </Button>
 
+          {testCases.length > 0 && (
+            <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs px-3 border-accent/40 text-accent" onClick={handleRunTests} disabled={isTesting || !editorUnlocked}>
+              {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
+              Test
+            </Button>
+          )}
+
           <Button size="sm" className="glow-primary h-8 gap-1.5 text-xs px-4" onClick={handleRun} disabled={isRunning || !editorUnlocked}>
             {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-            {isRunning ? "Running..." : "Run Code"}
+            {isRunning ? "Running..." : "Run"}
           </Button>
         </div>
       </header>
@@ -278,7 +431,6 @@ const EditorPage = () => {
       <div className={`flex-1 flex ${isFullscreen ? "flex-col" : "flex-col lg:flex-row"}`}>
         {/* Editor pane */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`${isFullscreen ? "flex-1" : "flex-1 lg:flex-[3]"} border-b lg:border-b-0 lg:border-r border-border/60 relative`}>
-          {/* Editor tab bar */}
           <div className="h-9 border-b border-border/60 bg-card/30 flex items-center px-2">
             <div className="flex items-center gap-1.5 px-3 py-1 bg-background/80 rounded-t-md border border-border/60 border-b-0 text-xs">
               <div className={`w-2 h-2 rounded-full ${editorUnlocked ? "bg-primary/60" : "bg-accent/60"}`} />
@@ -298,15 +450,15 @@ const EditorPage = () => {
                       <Brain className="h-6 w-6 text-accent" />
                       <CardTitle className="text-xl">Thinking Mode</CardTitle>
                     </div>
-                    <p className="text-sm text-muted-foreground">Before you start coding, describe your approach to solving this problem. This helps you think clearly and prevents copy-pasting.</p>
+                    <p className="text-sm text-muted-foreground">Before you start coding, describe your approach to solving this problem.</p>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="p-3 rounded-lg bg-secondary/30 border border-border/60">
                       <div className="flex items-start gap-2 mb-2">
                         <Lightbulb className="h-4 w-4 text-warm shrink-0 mt-0.5" />
                         <div>
-                          <p className="text-sm font-medium">{problemInfo.title}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{problemInfo.description}</p>
+                          <p className="text-sm font-medium">{problemTitle}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{problemDescription}</p>
                         </div>
                       </div>
                     </div>
@@ -316,7 +468,7 @@ const EditorPage = () => {
                         Your Approach <span className="text-muted-foreground text-xs">(min {minApproachLength} chars)</span>
                       </label>
                       <Textarea
-                        placeholder="Describe your algorithm idea... For example: 'I will use Kadane's algorithm to track the maximum subarray sum by maintaining a running sum and resetting it when it becomes negative...'"
+                        placeholder="Describe your algorithm idea..."
                         value={approach}
                         onChange={(e) => setApproach(e.target.value)}
                         className="min-h-[120px] bg-secondary/30 border-border/60 text-sm"
@@ -380,7 +532,19 @@ const EditorPage = () => {
                   AI Debug Help
                 </Button>
               )}
-              {output && !hasError && (
+              {output && !hasError && editorUnlocked && !submissionSaved && (
+                <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1 border-primary/40 text-primary hover:bg-primary/10" onClick={handleSaveSubmission} disabled={isSaving}>
+                  {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  Save Submission
+                </Button>
+              )}
+              {submissionSaved && (
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3 w-3 text-primary" />
+                  <span className="text-[10px] text-primary font-mono">saved</span>
+                </div>
+              )}
+              {output && !hasError && !submissionSaved && (
                 <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                   <span className="text-[10px] text-primary font-mono">completed</span>
@@ -423,8 +587,34 @@ const EditorPage = () => {
               )}
             </AnimatePresence>
 
+            {/* Test Results Summary */}
+            {testResults.length > 0 && !debugMentorOpen && (
+              <div className={`mb-4 p-3 rounded-lg border ${allTestsPassed ? "bg-primary/5 border-primary/20" : "bg-destructive/5 border-destructive/20"}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <FlaskConical className={`h-4 w-4 ${allTestsPassed ? "text-primary" : "text-destructive"}`} />
+                  <span className={`text-xs font-medium ${allTestsPassed ? "text-primary" : "text-destructive"}`}>
+                    {testResults.filter((r) => r.passed).length}/{testResults.length} Tests Passed
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {testResults.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      {r.passed ? (
+                        <CheckCircle2 className="h-3 w-3 text-primary shrink-0" />
+                      ) : (
+                        <X className="h-3 w-3 text-destructive shrink-0" />
+                      )}
+                      <span className="text-muted-foreground truncate">
+                        Test {i + 1}: {r.input}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Approach summary when unlocked */}
-            {editorUnlocked && approach && !debugMentorOpen && (
+            {editorUnlocked && approach && !debugMentorOpen && testResults.length === 0 && (
               <div className="mb-4 p-3 rounded-lg bg-accent/5 border border-accent/20">
                 <div className="flex items-center gap-2 mb-2">
                   <CheckCircle2 className="h-4 w-4 text-accent" />
@@ -434,10 +624,10 @@ const EditorPage = () => {
               </div>
             )}
 
-            {isRunning ? (
+            {isRunning || isTesting ? (
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <span className="font-mono">Compiling & executing...</span>
+                <span className="font-mono">{isTesting ? "Running test cases..." : "Compiling & executing..."}</span>
               </div>
             ) : output ? (
               <pre className={`text-sm font-mono whitespace-pre-wrap leading-relaxed ${hasError ? "text-destructive/90" : "text-foreground/90"}`}>{output}</pre>
@@ -446,7 +636,7 @@ const EditorPage = () => {
                 <div className="text-center">
                   <Terminal className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground/50">
-                    {editorUnlocked ? <>Click <span className="text-primary font-medium">Run Code</span> to see output</> : <>Write your approach to unlock the editor</>}
+                    {editorUnlocked ? <>Click <span className="text-primary font-medium">Run</span> to see output</> : <>Write your approach to unlock the editor</>}
                   </p>
                 </div>
               </div>
