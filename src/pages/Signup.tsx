@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 const Signup = () => {
   const navigate = useNavigate();
+  const { signUp } = useAuthContext();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,11 +28,16 @@ const Signup = () => {
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    
+    const { error } = await signUp(email, password, username);
+    
+    setLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
       toast.success("Account created! Welcome to ArivuCode 🎉");
       navigate("/dashboard");
-    }, 1000);
+    }
   };
 
   return (
