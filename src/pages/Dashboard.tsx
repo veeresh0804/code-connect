@@ -129,7 +129,8 @@ const Dashboard = () => {
         <nav className="hidden md:flex items-center gap-1">
           {[
             { label: "Dashboard", href: "/dashboard", icon: TrendingUp, active: true },
-            { label: "Editor", href: "/editor", icon: Code2 },
+            { label: "Problems", href: "/problems", icon: Code2 },
+            { label: "Editor", href: "/editor", icon: Terminal },
             { label: "Feed", href: "/feed", icon: MessageSquare },
           ].map((item) => (
             <Link key={item.label} to={item.href}>
