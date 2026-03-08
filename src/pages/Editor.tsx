@@ -101,28 +101,59 @@ const EditorPage = () => {
     setOutput("");
   };
 
+  const [searchParams] = useSearchParams();
+  const problemId = searchParams.get("problem");
+
+  // Load problem from database if problem ID is in URL
+  useEffect(() => {
+    if (problemId) {
+      const loadProblem = async () => {
+        const { data, error } = await supabase
+          .from("problems")
+          .select("*")
+          .eq("id", problemId)
+          .single();
+        if (data && !error) {
+          problemInfo.title = data.title;
+          problemInfo.difficulty = data.difficulty;
+          problemInfo.description = data.description;
+        }
+      };
+      loadProblem();
+    }
+  }, [problemId]);
+
   const handleRun = useCallback(async () => {
     setIsRunning(true);
-    setOutput("");
-    
-    // Simulate execution with possible error
-    setTimeout(() => {
-      // Randomly simulate success or error for demo
-      const hasError = Math.random() > 0.7;
-      
-      if (hasError) {
-        const errorOutput = `$ Running ${languages[language].label}...\n\nTraceback (most recent call last):\n  File "main.py", line 8, in <module>\n    print(solve([-2, 1, -3, 4, -1, 2, 1, -5, 4]))\n  File "main.py", line 5, in solve\n    max_sum = max(max_sum, current)\nTypeError: 'int' object is not callable\n\n✗ Execution failed`;
-        setOutput(errorOutput);
-        setLastError("TypeError: 'int' object is not callable");
-      } else {
+    setOutput(`$ Running ${languages[language].label}...\n`);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("code-runner", {
+        body: { code, language },
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
         setOutput(
-          `$ Running ${languages[language].label}...\n\n> Max subarray sum: 6\n\n✓ Execution completed in 0.042s\n✓ Memory used: 2.1 MB`
+          `$ Running ${languages[language].label}...\n\n${data.output}\n\n✓ Execution completed in ${data.executionTime}s`
         );
         setLastError("");
+      } else {
+        const errorMsg = data.error || data.output || "Unknown error";
+        setOutput(
+          `$ Running ${languages[language].label}...\n\n${errorMsg}\n\n✗ Execution failed`
+        );
+        setLastError(errorMsg);
       }
+    } catch (err: any) {
+      const msg = err.message || "Failed to execute code";
+      setOutput(`$ Running ${languages[language].label}...\n\n${msg}\n\n✗ Execution failed`);
+      setLastError(msg);
+    } finally {
       setIsRunning(false);
-    }, 1500);
-  }, [language]);
+    }
+  }, [language, code]);
 
   const handleReset = () => {
     setCode(languages[language].defaultCode);
