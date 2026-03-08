@@ -11,6 +11,7 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Feed from "./pages/Feed";
+import Problems from "./pages/Problems";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
