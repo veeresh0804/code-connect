@@ -13,6 +13,7 @@ import Signup from "./pages/Signup";
 import Feed from "./pages/Feed";
 import Problems from "./pages/Problems";
 import Battles from "./pages/Battles";
+import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/feed" element={<Feed />} />
             <Route path="/problems" element={<Problems />} />
             <Route path="/battles" element={<Battles />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
