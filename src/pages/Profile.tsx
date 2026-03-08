@@ -123,9 +123,11 @@ const Profile = () => {
           <div className="text-center sm:text-left flex-1">
             <div className="flex items-center gap-3 justify-center sm:justify-start">
               <h1 className="text-2xl font-bold">{displayName}</h1>
-              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
-                <Edit3 className="h-3 w-3" /> Edit
-              </Button>
+              <Link to="/settings">
+                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+                  <Edit3 className="h-3 w-3" /> Edit
+                </Button>
+              </Link>
             </div>
             <p className="text-muted-foreground text-sm mt-1">{profile?.bio || "Coding enthusiast"}</p>
             <div className="flex items-center gap-4 mt-3 justify-center sm:justify-start">
