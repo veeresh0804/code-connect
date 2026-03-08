@@ -150,6 +150,71 @@ export type Database = {
         }
         Relationships: []
       }
+      coding_battles: {
+        Row: {
+          challenger_code: string | null
+          challenger_finished_at: string | null
+          challenger_id: string
+          challenger_passed: boolean | null
+          created_at: string
+          ended_at: string | null
+          id: string
+          opponent_code: string | null
+          opponent_finished_at: string | null
+          opponent_id: string
+          opponent_passed: boolean | null
+          problem_id: string
+          started_at: string | null
+          status: string
+          time_limit_seconds: number
+          winner_id: string | null
+        }
+        Insert: {
+          challenger_code?: string | null
+          challenger_finished_at?: string | null
+          challenger_id: string
+          challenger_passed?: boolean | null
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          opponent_code?: string | null
+          opponent_finished_at?: string | null
+          opponent_id: string
+          opponent_passed?: boolean | null
+          problem_id: string
+          started_at?: string | null
+          status?: string
+          time_limit_seconds?: number
+          winner_id?: string | null
+        }
+        Update: {
+          challenger_code?: string | null
+          challenger_finished_at?: string | null
+          challenger_id?: string
+          challenger_passed?: boolean | null
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          opponent_code?: string | null
+          opponent_finished_at?: string | null
+          opponent_id?: string
+          opponent_passed?: boolean | null
+          problem_id?: string
+          started_at?: string | null
+          status?: string
+          time_limit_seconds?: number
+          winner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coding_battles_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       friendships: {
         Row: {
           created_at: string
