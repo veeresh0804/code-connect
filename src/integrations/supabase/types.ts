@@ -14,7 +14,303 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activities: {
+        Row: {
+          activity_type: string
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json | null
+          points: number | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          points?: number | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          points?: number | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      activity_comments: {
+        Row: {
+          activity_id: string
+          content: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          activity_id: string
+          content: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          activity_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_comments_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_likes: {
+        Row: {
+          activity_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_likes_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brain_scores: {
+        Row: {
+          coding_personality: string | null
+          consistency_score: number
+          difficulty_score: number
+          id: string
+          optimization_score: number
+          score: number
+          solve_speed_score: number
+          strength: string | null
+          updated_at: string
+          user_id: string
+          weakness: string | null
+        }
+        Insert: {
+          coding_personality?: string | null
+          consistency_score?: number
+          difficulty_score?: number
+          id?: string
+          optimization_score?: number
+          score?: number
+          solve_speed_score?: number
+          strength?: string | null
+          updated_at?: string
+          user_id: string
+          weakness?: string | null
+        }
+        Update: {
+          coding_personality?: string | null
+          consistency_score?: number
+          difficulty_score?: number
+          id?: string
+          optimization_score?: number
+          score?: number
+          solve_speed_score?: number
+          strength?: string | null
+          updated_at?: string
+          user_id?: string
+          weakness?: string | null
+        }
+        Relationships: []
+      }
+      friendships: {
+        Row: {
+          created_at: string
+          friend_id: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          friend_id: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          friend_id?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      problems: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          difficulty: string
+          id: string
+          test_cases: Json
+          title: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description: string
+          difficulty: string
+          id?: string
+          test_cases?: Json
+          title: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          difficulty?: string
+          id?: string
+          test_cases?: Json
+          title?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          challenges_lost: number
+          challenges_won: number
+          created_at: string
+          current_streak: number
+          display_name: string | null
+          id: string
+          last_solved_at: string | null
+          longest_streak: number
+          problems_solved: number
+          total_points: number
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          challenges_lost?: number
+          challenges_won?: number
+          created_at?: string
+          current_streak?: number
+          display_name?: string | null
+          id?: string
+          last_solved_at?: string | null
+          longest_streak?: number
+          problems_solved?: number
+          total_points?: number
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          challenges_lost?: number
+          challenges_won?: number
+          created_at?: string
+          current_streak?: number
+          display_name?: string | null
+          id?: string
+          last_solved_at?: string | null
+          longest_streak?: number
+          problems_solved?: number
+          total_points?: number
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      submissions: {
+        Row: {
+          approach: string | null
+          code: string
+          created_at: string
+          execution_time_ms: number | null
+          id: string
+          language: string
+          memory_used_kb: number | null
+          output: string | null
+          points_earned: number | null
+          problem_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          approach?: string | null
+          code: string
+          created_at?: string
+          execution_time_ms?: number | null
+          id?: string
+          language: string
+          memory_used_kb?: number | null
+          output?: string | null
+          points_earned?: number | null
+          problem_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          approach?: string | null
+          code?: string
+          created_at?: string
+          execution_time_ms?: number | null
+          id?: string
+          language?: string
+          memory_used_kb?: number | null
+          output?: string | null
+          points_earned?: number | null
+          problem_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submissions_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
