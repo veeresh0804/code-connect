@@ -151,11 +151,12 @@ const Dashboard = () => {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 text-sm">
             <Flame className="h-4 w-4 text-warm" />
             <span className="font-semibold text-warm">{currentStreak}</span>
           </div>
+          <NotificationBell />
           <Link to="/profile">
             <Avatar className="h-8 w-8 border border-primary/30 cursor-pointer hover:border-primary transition-colors">
               <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">{initials}</AvatarFallback>
