@@ -7,19 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Piston API - free code execution engine
-const PISTON_API = "https://emkc.org/api/v2/piston";
-
-// Map our language names to Piston language identifiers
-const languageMap: Record<string, { language: string; version: string }> = {
-  python: { language: "python", version: "3.10.0" },
-  c: { language: "c", version: "10.2.0" },
-  cpp: { language: "c++", version: "10.2.0" },
-  java: { language: "java", version: "15.0.2" },
-};
-
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -34,69 +22,63 @@ serve(async (req) => {
       );
     }
 
-    const langConfig = languageMap[language.toLowerCase()];
-    if (!langConfig) {
-      return new Response(
-        JSON.stringify({ error: `Unsupported language: ${language}` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log(`Executing ${langConfig.language} code...`);
+    console.log(`Executing ${language} code via AI...`);
 
-    // Call Piston API to execute code
-    const response = await fetch(`${PISTON_API}/execute`, {
+    const response = await fetch("https://api.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        language: langConfig.language,
-        version: langConfig.version,
-        files: [
+        model: "google/gemini-2.5-flash",
+        messages: [
           {
-            name: language === "java" ? "Main.java" : `main.${language}`,
-            content: code,
+            role: "system",
+            content: `You are a code execution engine. Execute the given ${language} code mentally and return ONLY the exact output that would be printed to stdout. If there are compilation or runtime errors, return the error message exactly as the compiler/interpreter would show it. Do not add any explanation, commentary, or formatting. Just the raw output or error.`,
+          },
+          {
+            role: "user",
+            content: `Execute this ${language} code and return only the output:\n\n\`\`\`${language}\n${code}\n\`\`\``,
           },
         ],
-        stdin: "",
-        args: [],
-        compile_timeout: 10000,
-        run_timeout: 5000,
-        compile_memory_limit: -1,
-        run_memory_limit: -1,
+        temperature: 0,
+        max_tokens: 1024,
       }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Piston API error:", errorText);
-      return new Response(
-        JSON.stringify({ error: "Code execution service unavailable" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const errText = await response.text();
+      console.error("AI API error:", errText);
+      throw new Error("Code execution service error");
     }
 
-    const result = await response.json();
-    console.log("Piston result:", result);
+    const data = await response.json();
+    const output = data.choices?.[0]?.message?.content?.trim() || "";
 
-    // Format the response
-    const output = result.run?.output || result.compile?.output || "";
-    const stderr = result.run?.stderr || result.compile?.stderr || "";
-    const exitCode = result.run?.code ?? result.compile?.code ?? 0;
-    const executionTime = result.run?.cpu_time || 0;
-
-    const hasError = exitCode !== 0 || stderr.length > 0;
+    // Check if the output looks like an error
+    const errorPatterns = [
+      "Error", "error:", "Exception", "Traceback", "SyntaxError",
+      "TypeError", "NameError", "ValueError", "IndexError",
+      "compilation failed", "segmentation fault", "undefined reference",
+    ];
+    const hasError = errorPatterns.some((p) =>
+      output.toLowerCase().includes(p.toLowerCase())
+    );
 
     return new Response(
       JSON.stringify({
         success: !hasError,
-        output: output.trim(),
-        error: stderr.trim(),
-        exitCode,
-        executionTime,
-        language: langConfig.language,
-        version: langConfig.version,
+        output: output,
+        error: hasError ? output : "",
+        exitCode: hasError ? 1 : 0,
+        executionTime: 0,
+        language,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
