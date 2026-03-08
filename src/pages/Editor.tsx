@@ -351,6 +351,105 @@ const EditorPage = () => {
     }
   }, [user, code, language, approach, output, problemId, problemTitle, problemDifficulty, testResults]);
 
+  // Battle submit
+  const handleBattleSubmit = useCallback(async () => {
+    if (!user || !battleId) return;
+    setSubmittingBattle(true);
+
+    try {
+      // Run tests first
+      const results: TestResult[] = [];
+      for (const tc of testCases) {
+        try {
+          const { data, error } = await supabase.functions.invoke("code-runner", {
+            body: { code, language },
+          });
+          if (error) throw error;
+          const actual = (data.output || data.error || "").trim();
+          const expected = tc.expected.trim();
+          const passed = actual.includes(expected) || expected.includes(actual);
+          results.push({ input: tc.input, expected, actual, passed });
+        } catch {
+          results.push({ input: tc.input, expected: tc.expected, actual: "Error", passed: false });
+        }
+      }
+
+      const allPassed = results.length > 0 && results.every((r) => r.passed);
+
+      // Get current battle to check roles
+      const { data: battle } = await supabase
+        .from("coding_battles")
+        .select("*")
+        .eq("id", battleId)
+        .single();
+
+      if (!battle) throw new Error("Battle not found");
+
+      const isChallenger = battle.challenger_id === user.id;
+      const updateData: Record<string, any> = {};
+
+      if (isChallenger) {
+        updateData.challenger_code = code;
+        updateData.challenger_finished_at = new Date().toISOString();
+        updateData.challenger_passed = allPassed;
+      } else {
+        updateData.opponent_code = code;
+        updateData.opponent_finished_at = new Date().toISOString();
+        updateData.opponent_passed = allPassed;
+      }
+
+      // Check if opponent already finished to determine winner
+      const opponentFinished = isChallenger ? battle.opponent_finished_at : battle.challenger_finished_at;
+      const opponentPassed = isChallenger ? battle.opponent_passed : battle.challenger_passed;
+
+      if (opponentFinished) {
+        // Both done - determine winner
+        let winnerId: string | null = null;
+        if (allPassed && !opponentPassed) {
+          winnerId = user.id;
+        } else if (!allPassed && opponentPassed) {
+          winnerId = isChallenger ? battle.opponent_id : battle.challenger_id;
+        } else if (allPassed && opponentPassed) {
+          // Both passed - faster wins
+          const myTime = new Date().getTime();
+          const theirTime = new Date(opponentFinished).getTime();
+          winnerId = myTime <= theirTime ? user.id : (isChallenger ? battle.opponent_id : battle.challenger_id);
+        }
+        updateData.status = "completed";
+        updateData.ended_at = new Date().toISOString();
+        updateData.winner_id = winnerId;
+
+        // Update profiles
+        if (winnerId) {
+          const loserId = winnerId === battle.challenger_id ? battle.opponent_id : battle.challenger_id;
+          const { data: wp } = await supabase.from("profiles").select("challenges_won").eq("user_id", winnerId).single();
+          const { data: lp } = await supabase.from("profiles").select("challenges_lost").eq("user_id", loserId).single();
+          if (wp) await supabase.from("profiles").update({ challenges_won: (wp.challenges_won || 0) + 1 }).eq("user_id", winnerId);
+          if (lp) await supabase.from("profiles").update({ challenges_lost: (lp.challenges_lost || 0) + 1 }).eq("user_id", loserId);
+        }
+      }
+
+      const { error } = await supabase.from("coding_battles").update(updateData).eq("id", battleId);
+      if (error) throw error;
+
+      toast.success(allPassed ? "Solution submitted! All tests passed! 🎉" : "Solution submitted. Some tests failed.");
+      setBattleEnded(true);
+
+      // Post activity
+      await supabase.from("activities").insert({
+        user_id: user.id,
+        activity_type: allPassed ? "challenge_won" : "challenge_lost",
+        title: `Battle: "${problemTitle}"`,
+        description: allPassed ? `Passed all tests in battle mode!` : `Attempted battle on "${problemTitle}"`,
+        points: allPassed ? 50 : 0,
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit battle solution");
+    } finally {
+      setSubmittingBattle(false);
+    }
+  }, [user, battleId, code, language, testCases, problemTitle]);
+
   const handleReset = () => {
     setCode(languages[language].defaultCode);
     setOutput("");
