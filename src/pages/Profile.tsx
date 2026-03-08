@@ -141,11 +141,11 @@ const Profile = () => {
                 <span className="font-semibold">{totalPoints.toLocaleString()}</span>
                 <span className="text-muted-foreground text-xs">points</span>
               </div>
-              <div className="flex items-center gap-1.5 text-sm">
+              <Link to="/friends" className="flex items-center gap-1.5 text-sm hover:text-primary transition-colors">
                 <Users className="h-4 w-4 text-accent" />
                 <span className="font-semibold">5</span>
                 <span className="text-muted-foreground text-xs">friends</span>
-              </div>
+              </Link>
             </div>
           </div>
         </motion.div>
