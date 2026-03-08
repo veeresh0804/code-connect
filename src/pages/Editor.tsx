@@ -22,6 +22,8 @@ import {
   X,
   Save,
   FlaskConical,
+  Timer,
+  Swords,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
