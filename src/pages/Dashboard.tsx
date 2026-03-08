@@ -361,6 +361,13 @@ const Dashboard = () => {
                     <ArrowRight className="h-4 w-4 ml-auto" />
                   </Button>
                 </Link>
+                <Link to="/battles">
+                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
+                    <Swords className="h-4 w-4 text-accent" />
+                    Coding Battles
+                    <ArrowRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                </Link>
                 <Link to="/feed">
                   <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
                     <MessageSquare className="h-4 w-4 text-primary" />
