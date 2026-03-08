@@ -1,38 +1,10 @@
 import { useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { Tables } from '@/integrations/supabase/types';
 
-export interface Profile {
-  id: string;
-  user_id: string;
-  username: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  bio: string | null;
-  total_points: number;
-  current_streak: number;
-  longest_streak: number;
-  problems_solved: number;
-  challenges_won: number;
-  challenges_lost: number;
-  last_solved_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface BrainScore {
-  id: string;
-  user_id: string;
-  score: number;
-  solve_speed_score: number;
-  optimization_score: number;
-  consistency_score: number;
-  difficulty_score: number;
-  strength: string | null;
-  weakness: string | null;
-  coding_personality: string | null;
-  updated_at: string;
-}
+export type Profile = Tables<'profiles'>;
+export type BrainScore = Tables<'brain_scores'>;
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -49,7 +21,7 @@ export function useAuth() {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Fetch profile
+          // Fetch profile (defer to avoid blocking)
           setTimeout(async () => {
             const { data: profileData } = await supabase
               .from('profiles')

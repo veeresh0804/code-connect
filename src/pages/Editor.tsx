@@ -1,20 +1,25 @@
 import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import Editor from "@monaco-editor/react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Terminal,
   Play,
   RotateCcw,
-  ChevronDown,
   Copy,
   Check,
   ArrowLeft,
   Maximize2,
   Minimize2,
   Loader2,
+  Lightbulb,
+  Lock,
+  Unlock,
+  Brain,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -22,6 +27,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 type Language = "python" | "c" | "cpp" | "java";
 
@@ -54,13 +62,26 @@ const languages: Record<Language, LanguageConfig> = {
   },
 };
 
+const problemInfo = {
+  title: "Maximum Subarray",
+  difficulty: "Medium",
+  description: "Given an integer array nums, find the subarray with the largest sum, and return its sum.",
+};
+
 const EditorPage = () => {
+  const { user, profile } = useAuthContext();
   const [language, setLanguage] = useState<Language>("python");
   const [code, setCode] = useState(languages.python.defaultCode);
   const [output, setOutput] = useState<string>("");
   const [isRunning, setIsRunning] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Thinking Mode state
+  const [thinkingMode, setThinkingMode] = useState(true);
+  const [approach, setApproach] = useState("");
+  const [editorUnlocked, setEditorUnlocked] = useState(false);
+  const minApproachLength = 50;
 
   const handleLanguageChange = (lang: Language) => {
     setLanguage(lang);
@@ -71,7 +92,6 @@ const EditorPage = () => {
   const handleRun = useCallback(() => {
     setIsRunning(true);
     setOutput("");
-    // Simulate code execution (will connect to backend later)
     setTimeout(() => {
       setOutput(
         `$ Running ${languages[language].label}...\n\n> Max subarray sum: 6\n\n✓ Execution completed in 0.042s\n✓ Memory used: 2.1 MB`
@@ -91,12 +111,22 @@ const EditorPage = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleUnlockEditor = () => {
+    if (approach.trim().length >= minApproachLength) {
+      setEditorUnlocked(true);
+      setThinkingMode(false);
+    }
+  };
+
+  const approachProgress = Math.min((approach.trim().length / minApproachLength) * 100, 100);
+  const canUnlock = approach.trim().length >= minApproachLength;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top bar */}
       <header className="h-14 border-b border-border/60 bg-card/50 backdrop-blur-xl flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <Link to="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="h-5 w-px bg-border" />
@@ -108,11 +138,28 @@ const EditorPage = () => {
           </div>
           <div className="h-5 w-px bg-border" />
           <span className="text-xs text-muted-foreground font-mono hidden sm:inline">
-            challenge_001.{language === "python" ? "py" : language === "java" ? "java" : language === "cpp" ? "cpp" : "c"}
+            {problemInfo.title}
           </span>
+          <Badge variant="secondary" className="bg-warm/20 text-warm text-[10px] hidden sm:flex">
+            {problemInfo.difficulty}
+          </Badge>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Thinking Mode indicator */}
+          {!editorUnlocked && (
+            <Badge variant="outline" className="border-accent/40 text-accent text-[10px] gap-1">
+              <Brain className="h-3 w-3" />
+              Thinking Mode
+            </Badge>
+          )}
+          {editorUnlocked && (
+            <Badge variant="outline" className="border-primary/40 text-primary text-[10px] gap-1">
+              <Unlock className="h-3 w-3" />
+              Editor Unlocked
+            </Badge>
+          )}
+
           <Select value={language} onValueChange={(v) => handleLanguageChange(v as Language)}>
             <SelectTrigger className="w-[130px] h-8 text-xs bg-secondary/50 border-border/60">
               <SelectValue />
@@ -131,6 +178,7 @@ const EditorPage = () => {
             size="icon"
             className="h-8 w-8"
             onClick={handleCopy}
+            disabled={!editorUnlocked}
           >
             {copied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
           </Button>
@@ -140,6 +188,7 @@ const EditorPage = () => {
             size="icon"
             className="h-8 w-8"
             onClick={handleReset}
+            disabled={!editorUnlocked}
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
@@ -157,7 +206,7 @@ const EditorPage = () => {
             size="sm"
             className="glow-primary h-8 gap-1.5 text-xs px-4"
             onClick={handleRun}
-            disabled={isRunning}
+            disabled={isRunning || !editorUnlocked}
           >
             {isRunning ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -180,12 +229,91 @@ const EditorPage = () => {
           {/* Editor tab bar */}
           <div className="h-9 border-b border-border/60 bg-card/30 flex items-center px-2">
             <div className="flex items-center gap-1.5 px-3 py-1 bg-background/80 rounded-t-md border border-border/60 border-b-0 text-xs">
-              <div className="w-2 h-2 rounded-full bg-primary/60" />
+              <div className={`w-2 h-2 rounded-full ${editorUnlocked ? "bg-primary/60" : "bg-accent/60"}`} />
               <span className="font-mono text-muted-foreground">
                 main.{language === "python" ? "py" : language === "java" ? "java" : language === "cpp" ? "cpp" : "c"}
               </span>
             </div>
           </div>
+
+          {/* Thinking Mode Overlay */}
+          <AnimatePresence>
+            {!editorUnlocked && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-10 bg-background/95 backdrop-blur-sm flex items-center justify-center p-6"
+                style={{ top: "36px" }}
+              >
+                <Card className="max-w-lg w-full bg-card/80 border-accent/30 glow-accent">
+                  <CardHeader className="text-center pb-4">
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Brain className="h-6 w-6 text-accent" />
+                      <CardTitle className="text-xl">Thinking Mode</CardTitle>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Before you start coding, describe your approach to solving this problem.
+                      This helps you think clearly and prevents copy-pasting.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-3 rounded-lg bg-secondary/30 border border-border/60">
+                      <div className="flex items-start gap-2 mb-2">
+                        <Lightbulb className="h-4 w-4 text-warm shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">{problemInfo.title}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{problemInfo.description}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Your Approach <span className="text-muted-foreground text-xs">(min {minApproachLength} chars)</span>
+                      </label>
+                      <Textarea
+                        placeholder="Describe your algorithm idea... For example: 'I will use Kadane's algorithm to track the maximum subarray sum by maintaining a running sum and resetting it when it becomes negative...'"
+                        value={approach}
+                        onChange={(e) => setApproach(e.target.value)}
+                        className="min-h-[120px] bg-secondary/30 border-border/60 text-sm"
+                      />
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex-1 bg-secondary/30 rounded-full h-2 mr-3">
+                          <motion.div
+                            className={`h-full rounded-full transition-colors ${canUnlock ? "bg-primary" : "bg-accent"}`}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${approachProgress}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs ${canUnlock ? "text-primary" : "text-muted-foreground"}`}>
+                          {approach.trim().length}/{minApproachLength}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Button
+                      className={`w-full gap-2 ${canUnlock ? "glow-primary" : ""}`}
+                      onClick={handleUnlockEditor}
+                      disabled={!canUnlock}
+                    >
+                      {canUnlock ? (
+                        <>
+                          <Unlock className="h-4 w-4" />
+                          Unlock Editor
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="h-4 w-4" />
+                          Write Your Approach First
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <Editor
             height="calc(100% - 36px)"
@@ -210,6 +338,7 @@ const EditorPage = () => {
               automaticLayout: true,
               tabSize: 4,
               wordWrap: "on",
+              readOnly: !editorUnlocked,
             }}
           />
         </motion.div>
@@ -235,6 +364,17 @@ const EditorPage = () => {
           </div>
 
           <div className="flex-1 p-4 overflow-auto">
+            {/* Approach summary when unlocked */}
+            {editorUnlocked && approach && (
+              <div className="mb-4 p-3 rounded-lg bg-accent/5 border border-accent/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 className="h-4 w-4 text-accent" />
+                  <span className="text-xs font-medium text-accent">Your Approach</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{approach}</p>
+              </div>
+            )}
+
             {isRunning ? (
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -249,7 +389,10 @@ const EditorPage = () => {
                 <div className="text-center">
                   <Terminal className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground/50">
-                    Click <span className="text-primary font-medium">Run Code</span> to see output
+                    {editorUnlocked 
+                      ? <>Click <span className="text-primary font-medium">Run Code</span> to see output</>
+                      : <>Write your approach to unlock the editor</>
+                    }
                   </p>
                 </div>
               </div>
