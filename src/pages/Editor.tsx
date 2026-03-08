@@ -1,0 +1,264 @@
+import { useState, useCallback } from "react";
+import { Link } from "react-router-dom";
+import Editor from "@monaco-editor/react";
+import { motion } from "framer-motion";
+import {
+  Terminal,
+  Play,
+  RotateCcw,
+  ChevronDown,
+  Copy,
+  Check,
+  ArrowLeft,
+  Maximize2,
+  Minimize2,
+  Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type Language = "python" | "c" | "cpp" | "java";
+
+interface LanguageConfig {
+  label: string;
+  monacoId: string;
+  defaultCode: string;
+}
+
+const languages: Record<Language, LanguageConfig> = {
+  python: {
+    label: "Python",
+    monacoId: "python",
+    defaultCode: `# ArivuCode — Python Challenge\n\ndef solve(nums):\n    """Find the maximum subarray sum."""\n    max_sum = current = nums[0]\n    for n in nums[1:]:\n        current = max(n, current + n)\n        max_sum = max(max_sum, current)\n    return max_sum\n\n# Test\nprint(solve([-2, 1, -3, 4, -1, 2, 1, -5, 4]))\n`,
+  },
+  c: {
+    label: "C",
+    monacoId: "c",
+    defaultCode: `// ArivuCode — C Challenge\n#include <stdio.h>\n\nint main() {\n    int nums[] = {-2, 1, -3, 4, -1, 2, 1, -5, 4};\n    int n = sizeof(nums) / sizeof(nums[0]);\n    int max_sum = nums[0], current = nums[0];\n\n    for (int i = 1; i < n; i++) {\n        current = (nums[i] > current + nums[i]) ? nums[i] : current + nums[i];\n        max_sum = (max_sum > current) ? max_sum : current;\n    }\n\n    printf("Max subarray sum: %d\\n", max_sum);\n    return 0;\n}\n`,
+  },
+  cpp: {
+    label: "C++",
+    monacoId: "cpp",
+    defaultCode: `// ArivuCode — C++ Challenge\n#include <iostream>\n#include <vector>\n#include <algorithm>\nusing namespace std;\n\nint main() {\n    vector<int> nums = {-2, 1, -3, 4, -1, 2, 1, -5, 4};\n    int max_sum = nums[0], current = nums[0];\n\n    for (int i = 1; i < nums.size(); i++) {\n        current = max(nums[i], current + nums[i]);\n        max_sum = max(max_sum, current);\n    }\n\n    cout << "Max subarray sum: " << max_sum << endl;\n    return 0;\n}\n`,
+  },
+  java: {
+    label: "Java",
+    monacoId: "java",
+    defaultCode: `// ArivuCode — Java Challenge\npublic class Solution {\n    public static void main(String[] args) {\n        int[] nums = {-2, 1, -3, 4, -1, 2, 1, -5, 4};\n        int maxSum = nums[0], current = nums[0];\n\n        for (int i = 1; i < nums.length; i++) {\n            current = Math.max(nums[i], current + nums[i]);\n            maxSum = Math.max(maxSum, current);\n        }\n\n        System.out.println("Max subarray sum: " + maxSum);\n    }\n}\n`,
+  },
+};
+
+const EditorPage = () => {
+  const [language, setLanguage] = useState<Language>("python");
+  const [code, setCode] = useState(languages.python.defaultCode);
+  const [output, setOutput] = useState<string>("");
+  const [isRunning, setIsRunning] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const handleLanguageChange = (lang: Language) => {
+    setLanguage(lang);
+    setCode(languages[lang].defaultCode);
+    setOutput("");
+  };
+
+  const handleRun = useCallback(() => {
+    setIsRunning(true);
+    setOutput("");
+    // Simulate code execution (will connect to backend later)
+    setTimeout(() => {
+      setOutput(
+        `$ Running ${languages[language].label}...\n\n> Max subarray sum: 6\n\n✓ Execution completed in 0.042s\n✓ Memory used: 2.1 MB`
+      );
+      setIsRunning(false);
+    }, 1500);
+  }, [language]);
+
+  const handleReset = () => {
+    setCode(languages[language].defaultCode);
+    setOutput("");
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Top bar */}
+      <header className="h-14 border-b border-border/60 bg-card/50 backdrop-blur-xl flex items-center justify-between px-4 shrink-0">
+        <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div className="h-5 w-px bg-border" />
+          <div className="flex items-center gap-2">
+            <Terminal className="h-5 w-5 text-primary" />
+            <span className="font-bold text-sm">
+              Arivu<span className="text-primary">Code</span>
+            </span>
+          </div>
+          <div className="h-5 w-px bg-border" />
+          <span className="text-xs text-muted-foreground font-mono hidden sm:inline">
+            challenge_001.{language === "python" ? "py" : language === "java" ? "java" : language === "cpp" ? "cpp" : "c"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Select value={language} onValueChange={(v) => handleLanguageChange(v as Language)}>
+            <SelectTrigger className="w-[130px] h-8 text-xs bg-secondary/50 border-border/60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(languages).map(([key, lang]) => (
+                <SelectItem key={key} value={key} className="text-xs">
+                  {lang.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleCopy}
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleReset}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 hidden md:flex"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+          >
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </Button>
+
+          <Button
+            size="sm"
+            className="glow-primary h-8 gap-1.5 text-xs px-4"
+            onClick={handleRun}
+            disabled={isRunning}
+          >
+            {isRunning ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Play className="h-3.5 w-3.5" />
+            )}
+            {isRunning ? "Running..." : "Run Code"}
+          </Button>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <div className={`flex-1 flex ${isFullscreen ? "flex-col" : "flex-col lg:flex-row"}`}>
+        {/* Editor pane */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className={`${isFullscreen ? "flex-1" : "flex-1 lg:flex-[3]"} border-b lg:border-b-0 lg:border-r border-border/60 relative`}
+        >
+          {/* Editor tab bar */}
+          <div className="h-9 border-b border-border/60 bg-card/30 flex items-center px-2">
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-background/80 rounded-t-md border border-border/60 border-b-0 text-xs">
+              <div className="w-2 h-2 rounded-full bg-primary/60" />
+              <span className="font-mono text-muted-foreground">
+                main.{language === "python" ? "py" : language === "java" ? "java" : language === "cpp" ? "cpp" : "c"}
+              </span>
+            </div>
+          </div>
+
+          <Editor
+            height="calc(100% - 36px)"
+            language={languages[language].monacoId}
+            value={code}
+            onChange={(v) => setCode(v || "")}
+            theme="vs-dark"
+            options={{
+              fontSize: 14,
+              fontFamily: "'JetBrains Mono', monospace",
+              minimap: { enabled: false },
+              padding: { top: 16 },
+              scrollBeyondLastLine: false,
+              smoothScrolling: true,
+              cursorBlinking: "smooth",
+              cursorSmoothCaretAnimation: "on",
+              renderLineHighlight: "gutter",
+              lineNumbers: "on",
+              glyphMargin: false,
+              folding: true,
+              lineDecorationsWidth: 8,
+              automaticLayout: true,
+              tabSize: 4,
+              wordWrap: "on",
+            }}
+          />
+        </motion.div>
+
+        {/* Output pane */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className={`${isFullscreen ? "h-48" : "flex-1 lg:flex-[1.2]"} flex flex-col bg-card/20`}
+        >
+          <div className="h-9 border-b border-border/60 bg-card/30 flex items-center justify-between px-4">
+            <div className="flex items-center gap-2">
+              <Terminal className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-medium text-muted-foreground">Output</span>
+            </div>
+            {output && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                <span className="text-[10px] text-primary font-mono">completed</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 p-4 overflow-auto">
+            {isRunning ? (
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="font-mono">Compiling & executing...</span>
+              </div>
+            ) : output ? (
+              <pre className="text-sm font-mono text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                {output}
+              </pre>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <Terminal className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground/50">
+                    Click <span className="text-primary font-medium">Run Code</span> to see output
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default EditorPage;
