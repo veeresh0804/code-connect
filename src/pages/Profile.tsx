@@ -99,9 +99,11 @@ const Profile = () => {
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="text-xs gap-1.5">
-            <Settings className="h-3.5 w-3.5" /> Settings
-          </Button>
+          <Link to="/settings">
+            <Button variant="ghost" size="sm" className="text-xs gap-1.5">
+              <Settings className="h-3.5 w-3.5" /> Settings
+            </Button>
+          </Link>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleSignOut}>
             <LogOut className="h-4 w-4" />
           </Button>
