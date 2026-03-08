@@ -326,8 +326,8 @@ const CTASection = () => (
         <p className="text-muted-foreground mb-8 text-lg">
           Join the community of coders who learn by challenging each other.
         </p>
-        <Button size="lg" className="glow-primary text-base px-8 h-12 gap-2">
-          Get Started Free <ArrowRight className="h-4 w-4" />
+        <Button size="lg" className="glow-primary text-base px-8 h-12 gap-2" asChild>
+          <Link to="/signup">Get Started Free <ArrowRight className="h-4 w-4" /></Link>
         </Button>
       </motion.div>
     </div>
