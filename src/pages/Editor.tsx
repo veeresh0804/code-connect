@@ -130,7 +130,7 @@ const EditorPage = () => {
           setProblemTitle(data.title);
           setProblemDifficulty(data.difficulty);
           setProblemDescription(data.description);
-          const cases = (data.test_cases as TestCase[]) || [];
+          const cases = (data.test_cases as unknown as TestCase[]) || [];
           setTestCases(cases);
         }
       };
