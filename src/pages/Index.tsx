@@ -22,8 +22,12 @@ const NavBar = () => (
         <a href="#roadmap" className="hover:text-foreground transition-colors">Roadmap</a>
       </div>
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" className="text-muted-foreground">Log in</Button>
-        <Button size="sm" className="glow-primary">Get Started</Button>
+        <Button variant="ghost" size="sm" className="text-muted-foreground" asChild>
+          <Link to="/login">Log in</Link>
+        </Button>
+        <Button size="sm" className="glow-primary" asChild>
+          <Link to="/signup">Get Started</Link>
+        </Button>
       </div>
     </div>
   </motion.nav>
