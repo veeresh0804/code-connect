@@ -108,6 +108,42 @@ export type Database = {
           },
         ]
       }
+      badges: {
+        Row: {
+          color: string
+          created_at: string
+          description: string
+          icon: string
+          id: string
+          name: string
+          points_reward: number
+          requirement_type: string
+          requirement_value: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          description: string
+          icon?: string
+          id?: string
+          name: string
+          points_reward?: number
+          requirement_type: string
+          requirement_value?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          description?: string
+          icon?: string
+          id?: string
+          name?: string
+          points_reward?: number
+          requirement_type?: string
+          requirement_value?: number
+        }
+        Relationships: []
+      }
       brain_scores: {
         Row: {
           coding_personality: string | null
@@ -147,6 +183,45 @@ export type Database = {
           updated_at?: string
           user_id?: string
           weakness?: string | null
+        }
+        Relationships: []
+      }
+      code_snippets: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          is_public: boolean
+          language: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          language?: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          language?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -215,6 +290,38 @@ export type Database = {
           },
         ]
       }
+      daily_challenges: {
+        Row: {
+          bonus_points: number
+          created_at: string
+          date: string
+          id: string
+          problem_id: string
+        }
+        Insert: {
+          bonus_points?: number
+          created_at?: string
+          date?: string
+          id?: string
+          problem_id: string
+        }
+        Update: {
+          bonus_points?: number
+          created_at?: string
+          date?: string
+          id?: string
+          problem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_challenges_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       friendships: {
         Row: {
           created_at: string
@@ -238,6 +345,119 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string | null
+          metadata: Json | null
+          read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          metadata?: Json | null
+          read?: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          metadata?: Json | null
+          read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      problem_discussions: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          parent_id: string | null
+          problem_id: string
+          upvotes: number
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          problem_id: string
+          upvotes?: number
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          problem_id?: string
+          upvotes?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "problem_discussions_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "problem_discussions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "problem_discussions_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      problem_hints: {
+        Row: {
+          content: string
+          created_at: string
+          hint_number: number
+          id: string
+          points_deduction: number
+          problem_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          hint_number?: number
+          id?: string
+          points_deduction?: number
+          problem_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          hint_number?: number
+          id?: string
+          points_deduction?: number
+          problem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "problem_hints_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       problems: {
         Row: {
@@ -323,6 +543,54 @@ export type Database = {
         }
         Relationships: []
       }
+      streak_history: {
+        Row: {
+          date: string
+          id: string
+          points_earned: number
+          problems_solved: number
+          user_id: string
+        }
+        Insert: {
+          date?: string
+          id?: string
+          points_earned?: number
+          problems_solved?: number
+          user_id: string
+        }
+        Update: {
+          date?: string
+          id?: string
+          points_earned?: number
+          problems_solved?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      study_plans: {
+        Row: {
+          generated_at: string
+          id: string
+          plan: Json
+          user_id: string
+          valid_until: string
+        }
+        Insert: {
+          generated_at?: string
+          id?: string
+          plan?: Json
+          user_id: string
+          valid_until?: string
+        }
+        Update: {
+          generated_at?: string
+          id?: string
+          plan?: Json
+          user_id?: string
+          valid_until?: string
+        }
+        Relationships: []
+      }
       submissions: {
         Row: {
           approach: string | null
@@ -375,6 +643,103 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_badges: {
+        Row: {
+          badge_id: string
+          earned_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          badge_id: string
+          earned_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          badge_id?: string
+          earned_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_hints_used: {
+        Row: {
+          hint_number: number
+          id: string
+          problem_id: string
+          used_at: string
+          user_id: string
+        }
+        Insert: {
+          hint_number: number
+          id?: string
+          problem_id: string
+          used_at?: string
+          user_id: string
+        }
+        Update: {
+          hint_number?: number
+          id?: string
+          problem_id?: string
+          used_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_hints_used_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_settings: {
+        Row: {
+          created_at: string
+          email_notifications: boolean
+          id: string
+          profile_visibility: string
+          push_notifications: boolean
+          show_online_status: boolean
+          theme: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_notifications?: boolean
+          id?: string
+          profile_visibility?: string
+          push_notifications?: boolean
+          show_online_status?: boolean
+          theme?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email_notifications?: boolean
+          id?: string
+          profile_visibility?: string
+          push_notifications?: boolean
+          show_online_status?: boolean
+          theme?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {

@@ -14,6 +14,11 @@ import Feed from "./pages/Feed";
 import Problems from "./pages/Problems";
 import Battles from "./pages/Battles";
 import Leaderboard from "./pages/Leaderboard";
+import Badges from "./pages/Badges";
+import Friends from "./pages/Friends";
+import Settings from "./pages/Settings";
+import Snippets from "./pages/Snippets";
+import StudyPlan from "./pages/StudyPlan";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +41,11 @@ const App = () => (
             <Route path="/problems" element={<Problems />} />
             <Route path="/battles" element={<Battles />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/badges" element={<Badges />} />
+            <Route path="/friends" element={<Friends />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/snippets" element={<Snippets />} />
+            <Route path="/study-plan" element={<StudyPlan />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

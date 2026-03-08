@@ -99,9 +99,11 @@ const Profile = () => {
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="text-xs gap-1.5">
-            <Settings className="h-3.5 w-3.5" /> Settings
-          </Button>
+          <Link to="/settings">
+            <Button variant="ghost" size="sm" className="text-xs gap-1.5">
+              <Settings className="h-3.5 w-3.5" /> Settings
+            </Button>
+          </Link>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleSignOut}>
             <LogOut className="h-4 w-4" />
           </Button>
@@ -121,9 +123,11 @@ const Profile = () => {
           <div className="text-center sm:text-left flex-1">
             <div className="flex items-center gap-3 justify-center sm:justify-start">
               <h1 className="text-2xl font-bold">{displayName}</h1>
-              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
-                <Edit3 className="h-3 w-3" /> Edit
-              </Button>
+              <Link to="/settings">
+                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+                  <Edit3 className="h-3 w-3" /> Edit
+                </Button>
+              </Link>
             </div>
             <p className="text-muted-foreground text-sm mt-1">{profile?.bio || "Coding enthusiast"}</p>
             <div className="flex items-center gap-4 mt-3 justify-center sm:justify-start">
@@ -137,11 +141,11 @@ const Profile = () => {
                 <span className="font-semibold">{totalPoints.toLocaleString()}</span>
                 <span className="text-muted-foreground text-xs">points</span>
               </div>
-              <div className="flex items-center gap-1.5 text-sm">
+              <Link to="/friends" className="flex items-center gap-1.5 text-sm hover:text-primary transition-colors">
                 <Users className="h-4 w-4 text-accent" />
                 <span className="font-semibold">5</span>
                 <span className="text-muted-foreground text-xs">friends</span>
-              </div>
+              </Link>
             </div>
           </div>
         </motion.div>
@@ -248,10 +252,15 @@ const Profile = () => {
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
             <Card className="bg-card/50 border-border/60">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Award className="h-4 w-4 text-warm" />
-                  Badges
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Award className="h-4 w-4 text-warm" />
+                    Badges
+                  </CardTitle>
+                  <Link to="/badges">
+                    <Button variant="ghost" size="sm" className="text-xs text-primary">View All</Button>
+                  </Link>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-3 gap-3">
