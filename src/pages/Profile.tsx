@@ -252,10 +252,15 @@ const Profile = () => {
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
             <Card className="bg-card/50 border-border/60">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Award className="h-4 w-4 text-warm" />
-                  Badges
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Award className="h-4 w-4 text-warm" />
+                    Badges
+                  </CardTitle>
+                  <Link to="/badges">
+                    <Button variant="ghost" size="sm" className="text-xs text-primary">View All</Button>
+                  </Link>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-3 gap-3">
