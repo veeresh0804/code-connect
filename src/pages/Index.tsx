@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Code2, Flame, Trophy, Users, Zap, ArrowRight, Terminal, Braces, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 const NavBar = () => (
   <motion.nav
