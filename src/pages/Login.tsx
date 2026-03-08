@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { signIn } = useAuthContext();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -21,12 +23,16 @@ const Login = () => {
       return;
     }
     setLoading(true);
-    // Simulate login — will connect to backend later
-    setTimeout(() => {
-      setLoading(false);
+    
+    const { error } = await signIn(email, password);
+    
+    setLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
       toast.success("Welcome back!");
       navigate("/dashboard");
-    }, 1000);
+    }
   };
 
   return (
