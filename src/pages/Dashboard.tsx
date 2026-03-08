@@ -18,6 +18,9 @@ import {
   Brain,
   LogOut,
   MessageSquare,
+  Award,
+  BookOpen,
+  FileCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { NotificationBell } from "@/components/NotificationBell";
 import { toast } from "sonner";
 
 // Mock data
