@@ -35,6 +35,7 @@ const App = () => (
             <Route path="/feed" element={<Feed />} />
             <Route path="/problems" element={<Problems />} />
             <Route path="/battles" element={<Battles />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
