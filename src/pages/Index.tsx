@@ -60,8 +60,8 @@ const HeroSection = () => (
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Button size="lg" className="glow-primary text-base px-8 h-12 gap-2">
-            Start Coding Free <ArrowRight className="h-4 w-4" />
+          <Button size="lg" className="glow-primary text-base px-8 h-12 gap-2" asChild>
+            <Link to="/editor">Start Coding Free <ArrowRight className="h-4 w-4" /></Link>
           </Button>
           <Button variant="outline" size="lg" className="text-base px-8 h-12 border-border/60 gap-2">
             <Code2 className="h-4 w-4" /> View Demo
