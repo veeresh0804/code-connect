@@ -359,13 +359,6 @@ const Dashboard = () => {
                     <ArrowRight className="h-4 w-4 ml-auto" />
                   </Button>
                 </Link>
-                <Link to="/editor">
-                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
-                    <Terminal className="h-4 w-4 text-primary" />
-                    Open Editor
-                    <ArrowRight className="h-4 w-4 ml-auto" />
-                  </Button>
-                </Link>
                 <Link to="/battles">
                   <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
                     <Swords className="h-4 w-4 text-accent" />
@@ -373,10 +366,38 @@ const Dashboard = () => {
                     <ArrowRight className="h-4 w-4 ml-auto" />
                   </Button>
                 </Link>
-                <Link to="/feed">
+                <Link to="/study-plan">
                   <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
-                    <MessageSquare className="h-4 w-4 text-primary" />
-                    View Social Feed
+                    <BookOpen className="h-4 w-4 text-primary" />
+                    AI Study Plan
+                    <ArrowRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                </Link>
+                <Link to="/snippets">
+                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
+                    <FileCode className="h-4 w-4 text-accent" />
+                    Code Snippets
+                    <ArrowRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                </Link>
+                <Link to="/badges">
+                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
+                    <Award className="h-4 w-4 text-[hsl(var(--warm))]" />
+                    Achievements
+                    <ArrowRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                </Link>
+                <Link to="/friends">
+                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
+                    <Users className="h-4 w-4 text-primary" />
+                    Friends
+                    <ArrowRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                </Link>
+                <Link to="/leaderboard">
+                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
+                    <Trophy className="h-4 w-4 text-[hsl(var(--warm))]" />
+                    Leaderboard
                     <ArrowRight className="h-4 w-4 ml-auto" />
                   </Button>
                 </Link>
