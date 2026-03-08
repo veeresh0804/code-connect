@@ -121,6 +121,34 @@ const EditorPage = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastError, setLastError] = useState("");
 
+  // Battle mode state
+  const [battleTimeLeft, setBattleTimeLeft] = useState<string>("");
+  const [battleTimeLimitSec, setBattleTimeLimitSec] = useState(900);
+  const [battleStartedAt, setBattleStartedAt] = useState<string | null>(null);
+  const [battleEnded, setBattleEnded] = useState(false);
+  const [submittingBattle, setSubmittingBattle] = useState(false);
+  const battleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Battle timer
+  useEffect(() => {
+    if (!battleId || !battleStartedAt) return;
+    battleTimerRef.current = setInterval(() => {
+      const start = new Date(battleStartedAt).getTime();
+      const end = start + battleTimeLimitSec * 1000;
+      const remaining = Math.max(0, end - Date.now());
+      if (remaining <= 0) {
+        setBattleTimeLeft("Time's up!");
+        setBattleEnded(true);
+        if (battleTimerRef.current) clearInterval(battleTimerRef.current);
+        return;
+      }
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      setBattleTimeLeft(`${mins}:${secs.toString().padStart(2, "0")}`);
+    }, 1000);
+    return () => { if (battleTimerRef.current) clearInterval(battleTimerRef.current); };
+  }, [battleId, battleStartedAt, battleTimeLimitSec]);
+
   // Load problem from database
   useEffect(() => {
     if (problemId) {
@@ -141,6 +169,24 @@ const EditorPage = () => {
       loadProblem();
     }
   }, [problemId]);
+
+  // Load battle info
+  useEffect(() => {
+    if (!battleId) return;
+    const loadBattle = async () => {
+      const { data } = await supabase
+        .from("coding_battles")
+        .select("*")
+        .eq("id", battleId)
+        .single();
+      if (data) {
+        setBattleStartedAt(data.started_at);
+        setBattleTimeLimitSec(data.time_limit_seconds);
+        if (data.status === "completed") setBattleEnded(true);
+      }
+    };
+    loadBattle();
+  }, [battleId]);
 
   const handleLanguageChange = (lang: Language) => {
     setLanguage(lang);
