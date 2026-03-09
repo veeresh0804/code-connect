@@ -13,6 +13,7 @@ import {
   Code2,
   Send,
   ArrowLeft,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,70 +22,22 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
-// Mock data for initial display
-const mockFeedData = [
-  {
-    id: "1",
-    user: { username: "Kavi", initials: "KV" },
-    activity_type: "solve",
-    title: "Solved 'Two Sum' in Python",
-    description: "First try! Used a hashmap approach.",
-    points: 50,
-    created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    likes: 12,
-    comments: 3,
-    liked: false,
-  },
-  {
-    id: "2",
-    user: { username: "Priya", initials: "PR" },
-    activity_type: "streak",
-    title: "🔥 Reached 30-day streak!",
-    description: "Consistency is key. One problem a day keeps the bugs away.",
-    points: 200,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    likes: 45,
-    comments: 8,
-    liked: true,
-  },
-  {
-    id: "3",
-    user: { username: "Ravi", initials: "RV" },
-    activity_type: "challenge_won",
-    title: "Won a challenge against @Arun",
-    description: "Binary Search - solved in 4:32 minutes!",
-    points: 100,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-    likes: 23,
-    comments: 5,
-    liked: false,
-  },
-  {
-    id: "4",
-    user: { username: "Deepa", initials: "DP" },
-    activity_type: "badge_earned",
-    title: "Earned the 'Speed Demon' badge ⚡",
-    description: "Solved 10 problems under 5 minutes each.",
-    points: 150,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
-    likes: 67,
-    comments: 12,
-    liked: true,
-  },
-  {
-    id: "5",
-    user: { username: "Arun", initials: "AR" },
-    activity_type: "solve",
-    title: "Cracked 'Graph Traversal' (Hard)",
-    description: "DFS + memoization. Took 3 attempts but finally got it!",
-    points: 150,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    likes: 34,
-    comments: 7,
-    liked: false,
-  },
-];
+interface FeedItem {
+  id: string;
+  user_id: string;
+  username: string;
+  initials: string;
+  activity_type: string;
+  title: string;
+  description: string | null;
+  points: number;
+  created_at: string;
+  likes: number;
+  comments: number;
+  liked: boolean;
+}
 
 const activityIcons: Record<string, any> = {
   solve: Code2,
@@ -117,34 +70,134 @@ const formatTimeAgo = (dateString: string) => {
 
 const Feed = () => {
   const { user, profile } = useAuthContext();
-  const [feed, setFeed] = useState(mockFeedData);
+  const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [loadingFeed, setLoadingFeed] = useState(true);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
 
-  const handleLike = (id: string) => {
-    setFeed(prev =>
-      prev.map(item =>
-        item.id === id
-          ? { ...item, liked: !item.liked, likes: item.liked ? item.likes - 1 : item.likes + 1 }
-          : item
-      )
-    );
+  useEffect(() => {
+    loadFeed();
+  }, [user]);
+
+  const loadFeed = async () => {
+    try {
+      // Fetch activities
+      const { data: activities, error } = await supabase
+        .from("activities")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      if (!activities || activities.length === 0) {
+        setFeed([]);
+        setLoadingFeed(false);
+        return;
+      }
+
+      // Get unique user IDs
+      const userIds = [...new Set(activities.map(a => a.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, username, display_name")
+        .in("user_id", userIds);
+
+      const profileMap: Record<string, { username: string; display_name: string | null }> = {};
+      profiles?.forEach(p => { profileMap[p.user_id] = p; });
+
+      // Get like counts and user likes
+      const activityIds = activities.map(a => a.id);
+      const [likesRes, userLikesRes, commentsRes] = await Promise.all([
+        supabase.from("activity_likes").select("activity_id").in("activity_id", activityIds),
+        user
+          ? supabase.from("activity_likes").select("activity_id").eq("user_id", user.id).in("activity_id", activityIds)
+          : Promise.resolve({ data: [] }),
+        supabase.from("activity_comments").select("activity_id").in("activity_id", activityIds),
+      ]);
+
+      // Count likes per activity
+      const likeCounts: Record<string, number> = {};
+      likesRes.data?.forEach(l => { likeCounts[l.activity_id] = (likeCounts[l.activity_id] || 0) + 1; });
+
+      const userLikedSet = new Set(userLikesRes.data?.map(l => l.activity_id) || []);
+
+      // Count comments per activity
+      const commentCounts: Record<string, number> = {};
+      commentsRes.data?.forEach(c => { commentCounts[c.activity_id] = (commentCounts[c.activity_id] || 0) + 1; });
+
+      const feedItems: FeedItem[] = activities.map(a => {
+        const prof = profileMap[a.user_id];
+        const displayName = prof?.display_name || prof?.username || "Unknown";
+        return {
+          id: a.id,
+          user_id: a.user_id,
+          username: displayName,
+          initials: displayName.slice(0, 2).toUpperCase(),
+          activity_type: a.activity_type,
+          title: a.title,
+          description: a.description,
+          points: a.points || 0,
+          created_at: a.created_at,
+          likes: likeCounts[a.id] || 0,
+          comments: commentCounts[a.id] || 0,
+          liked: userLikedSet.has(a.id),
+        };
+      });
+
+      setFeed(feedItems);
+    } catch (err) {
+      console.error("Error loading feed:", err);
+    } finally {
+      setLoadingFeed(false);
+    }
   };
 
-  const handleComment = (id: string) => {
-    const comment = commentInputs[id]?.trim();
-    if (!comment) return;
-    
-    setFeed(prev =>
-      prev.map(item =>
-        item.id === id ? { ...item, comments: item.comments + 1 } : item
-      )
-    );
+  const handleLike = async (id: string) => {
+    if (!user) {
+      toast.error("Sign in to like posts");
+      return;
+    }
+
+    const item = feed.find(f => f.id === id);
+    if (!item) return;
+
+    if (item.liked) {
+      // Unlike
+      await supabase.from("activity_likes").delete().eq("activity_id", id).eq("user_id", user.id);
+      setFeed(prev => prev.map(f => f.id === id ? { ...f, liked: false, likes: f.likes - 1 } : f));
+    } else {
+      // Like
+      await supabase.from("activity_likes").insert({ activity_id: id, user_id: user.id });
+      setFeed(prev => prev.map(f => f.id === id ? { ...f, liked: true, likes: f.likes + 1 } : f));
+    }
+  };
+
+  const handleComment = async (id: string) => {
+    if (!user) {
+      toast.error("Sign in to comment");
+      return;
+    }
+
+    const content = commentInputs[id]?.trim();
+    if (!content) return;
+
+    const { error } = await supabase.from("activity_comments").insert({
+      activity_id: id,
+      user_id: user.id,
+      content,
+    });
+
+    if (error) {
+      toast.error("Failed to post comment");
+      return;
+    }
+
+    setFeed(prev => prev.map(f => f.id === id ? { ...f, comments: f.comments + 1 } : f));
     setCommentInputs(prev => ({ ...prev, [id]: "" }));
+    toast.success("Comment posted!");
   };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="h-14 border-b border-border/60 bg-card/50 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <Link to="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
@@ -188,97 +241,101 @@ const Feed = () => {
           <p className="text-muted-foreground text-sm">See what your friends are coding</p>
         </motion.div>
 
-        {/* Feed items */}
-        <div className="space-y-4">
-          {feed.map((item, index) => {
-            const Icon = activityIcons[item.activity_type] || Code2;
-            const iconColor = activityColors[item.activity_type] || "text-primary";
-            
-            return (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <Card className="bg-card/50 border-border/60 hover:border-primary/20 transition-colors">
-                  <CardContent className="p-4">
-                    {/* Header */}
-                    <div className="flex items-start gap-3 mb-3">
-                      <Avatar className="h-10 w-10 border border-border/60">
-                        <AvatarFallback className="bg-accent/10 text-accent text-sm">
-                          {item.user.initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-sm">{item.user.username}</span>
-                          <span className="text-xs text-muted-foreground">{formatTimeAgo(item.created_at)}</span>
+        {loadingFeed ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : feed.length === 0 ? (
+          <Card className="bg-card/50 border-border/60">
+            <CardContent className="p-8 text-center">
+              <Code2 className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground">No activity yet. Start solving problems to see your feed!</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {feed.map((item, index) => {
+              const Icon = activityIcons[item.activity_type] || Code2;
+              const iconColor = activityColors[item.activity_type] || "text-primary";
+              
+              return (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Card className="bg-card/50 border-border/60 hover:border-primary/20 transition-colors">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3 mb-3">
+                        <Avatar className="h-10 w-10 border border-border/60">
+                          <AvatarFallback className="bg-accent/10 text-accent text-sm">
+                            {item.initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm">{item.username}</span>
+                            <span className="text-xs text-muted-foreground">{formatTimeAgo(item.created_at)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Icon className={`h-4 w-4 ${iconColor}`} />
+                            <span className="text-sm">{item.title}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Icon className={`h-4 w-4 ${iconColor}`} />
-                          <span className="text-sm">{item.title}</span>
-                        </div>
+                        {item.points > 0 && (
+                          <Badge variant="secondary" className="bg-primary/10 text-primary text-xs shrink-0">
+                            +{item.points} pts
+                          </Badge>
+                        )}
                       </div>
-                      {item.points > 0 && (
-                        <Badge variant="secondary" className="bg-primary/10 text-primary text-xs shrink-0">
-                          +{item.points} pts
-                        </Badge>
+
+                      {item.description && (
+                        <p className="text-sm text-muted-foreground mb-4 ml-13 pl-10">
+                          {item.description}
+                        </p>
                       )}
-                    </div>
 
-                    {/* Description */}
-                    {item.description && (
-                      <p className="text-sm text-muted-foreground mb-4 ml-13 pl-10">
-                        {item.description}
-                      </p>
-                    )}
+                      <div className="flex items-center gap-4 ml-13 pl-10">
+                        <button
+                          onClick={() => handleLike(item.id)}
+                          className={`flex items-center gap-1.5 text-sm transition-colors ${
+                            item.liked ? "text-destructive" : "text-muted-foreground hover:text-destructive"
+                          }`}
+                        >
+                          <Heart className={`h-4 w-4 ${item.liked ? "fill-current" : ""}`} />
+                          <span>{item.likes}</span>
+                        </button>
+                        <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
+                          <MessageCircle className="h-4 w-4" />
+                          <span>{item.comments}</span>
+                        </button>
+                      </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-4 ml-13 pl-10">
-                      <button
-                        onClick={() => handleLike(item.id)}
-                        className={`flex items-center gap-1.5 text-sm transition-colors ${
-                          item.liked ? "text-destructive" : "text-muted-foreground hover:text-destructive"
-                        }`}
-                      >
-                        <Heart className={`h-4 w-4 ${item.liked ? "fill-current" : ""}`} />
-                        <span>{item.likes}</span>
-                      </button>
-                      <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
-                        <MessageCircle className="h-4 w-4" />
-                        <span>{item.comments}</span>
-                      </button>
-                      <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-accent transition-colors">
-                        <Swords className="h-4 w-4" />
-                        <span className="text-xs">Challenge</span>
-                      </button>
-                    </div>
-
-                    {/* Comment input */}
-                    <div className="flex items-center gap-2 mt-4 ml-13 pl-10">
-                      <Input
-                        placeholder="Write a comment..."
-                        value={commentInputs[item.id] || ""}
-                        onChange={(e) => setCommentInputs(prev => ({ ...prev, [item.id]: e.target.value }))}
-                        onKeyDown={(e) => e.key === "Enter" && handleComment(item.id)}
-                        className="h-8 text-xs bg-secondary/30 border-border/60"
-                      />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        onClick={() => handleComment(item.id)}
-                      >
-                        <Send className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
-          })}
-        </div>
+                      <div className="flex items-center gap-2 mt-4 ml-13 pl-10">
+                        <Input
+                          placeholder="Write a comment..."
+                          value={commentInputs[item.id] || ""}
+                          onChange={(e) => setCommentInputs(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          onKeyDown={(e) => e.key === "Enter" && handleComment(item.id)}
+                          className="h-8 text-xs bg-secondary/30 border-border/60"
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleComment(item.id)}
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </main>
     </div>
   );
