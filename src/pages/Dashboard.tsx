@@ -110,59 +110,88 @@ const Dashboard = () => {
     if (!user) return;
     
     try {
-      // Load battles
-      const battlesQuery = supabase
+      // Load battles - simpler approach without joins for now
+      const battlesRes = await supabase
         .from("coding_battles")
-        .select(`
-          *,
-          challenger:profiles!coding_battles_challenger_id_fkey(username, display_name),
-          opponent:profiles!coding_battles_opponent_id_fkey(username, display_name),
-          problem:problems(title, difficulty)
-        `)
+        .select("*")
         .or(`challenger_id.eq.${user.id},opponent_id.eq.${user.id}`)
         .order("created_at", { ascending: false })
         .limit(6);
 
-      // Load friends
-      const friendsQuery = supabase
+      // Load friends - get accepted friendships first, then get profiles
+      const friendshipsRes = await supabase
         .from("friendships")
-        .select(`
-          friend_id,
-          profiles!friendships_friend_id_fkey(user_id, username, display_name, total_points, current_streak, problems_solved)
-        `)
+        .select("friend_id")
         .eq("user_id", user.id)
-        .eq("status", "accepted")
-        .order("profiles.total_points", { ascending: false })
-        .limit(5);
+        .eq("status", "accepted");
+
+      let friendProfiles: FriendProfile[] = [];
+      if (friendshipsRes.data && friendshipsRes.data.length > 0) {
+        const friendIds = friendshipsRes.data.map(f => f.friend_id);
+        const profilesRes = await supabase
+          .from("profiles")
+          .select("user_id, username, display_name, total_points, current_streak, problems_solved")
+          .in("user_id", friendIds)
+          .order("total_points", { ascending: false })
+          .limit(5);
+        
+        if (profilesRes.data) {
+          friendProfiles = profilesRes.data;
+        }
+      }
 
       // Load leaderboard
-      const leaderboardQuery = supabase
+      const leaderboardRes = await supabase
         .from("profiles")
         .select("user_id, username, display_name, total_points")
         .order("total_points", { ascending: false })
         .limit(5);
 
       // Load streak history
-      const streakQuery = supabase
+      const streakRes = await supabase
         .from("streak_history")
         .select("date, problems_solved")
         .eq("user_id", user.id)
         .order("date", { ascending: false })
         .limit(7);
 
-      const [battlesRes, friendsRes, leaderboardRes, streakRes] = await Promise.all([
-        battlesQuery,
-        friendsQuery,
-        leaderboardQuery,
-        streakQuery,
-      ]);
+      // Process battles data
+      if (battlesRes.data) {
+        const battlesWithDetails = await Promise.all(
+          battlesRes.data.map(async (battle) => {
+            // Get challenger profile
+            const challengerRes = await supabase
+              .from("profiles")
+              .select("username, display_name")
+              .eq("user_id", battle.challenger_id)
+              .single();
 
-      if (battlesRes.data) setBattles(battlesRes.data);
-      
-      if (friendsRes.data) {
-        const friendProfiles = friendsRes.data.map(f => f.profiles).filter(Boolean);
-        setFriends(friendProfiles);
+            // Get opponent profile  
+            const opponentRes = await supabase
+              .from("profiles")
+              .select("username, display_name")
+              .eq("user_id", battle.opponent_id)
+              .single();
+
+            // Get problem details
+            const problemRes = await supabase
+              .from("problems")
+              .select("title, difficulty")
+              .eq("id", battle.problem_id)
+              .single();
+
+            return {
+              ...battle,
+              challenger: challengerRes.data,
+              opponent: opponentRes.data,
+              problem: problemRes.data,
+            };
+          })
+        );
+        setBattles(battlesWithDetails);
       }
+      
+      setFriends(friendProfiles);
       
       if (leaderboardRes.data) setLeaderboard(leaderboardRes.data);
 
