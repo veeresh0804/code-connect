@@ -816,7 +816,7 @@ const EditorPage = () => {
               </div>
             )}
             {/* Problem Discussions */}
-            {selectedProblem && (
+            {problemId && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -824,7 +824,7 @@ const EditorPage = () => {
                 className="bg-card/50 rounded-lg border border-border/60 overflow-hidden"
               >
                 <ProblemDiscussions
-                  problemId={selectedProblem.id}
+                  problemId={problemId}
                   userId={user?.id || null}
                 />
               </motion.div>
