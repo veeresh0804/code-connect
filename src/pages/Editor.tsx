@@ -815,6 +815,20 @@ const EditorPage = () => {
                 </div>
               </div>
             )}
+            {/* Problem Discussions */}
+            {selectedProblem && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-card/50 rounded-lg border border-border/60 overflow-hidden"
+              >
+                <ProblemDiscussions
+                  problemId={selectedProblem.id}
+                  userId={user?.id || null}
+                />
+              </motion.div>
+            )}
           </div>
         </motion.div>
       </div>
