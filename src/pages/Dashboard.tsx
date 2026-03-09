@@ -32,44 +32,39 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// Mock data
-const streakData = {
-  current: 12,
-  longest: 34,
-  todaySolved: true,
-  weekDays: [
-    { day: "Mon", done: true },
-    { day: "Tue", done: true },
-    { day: "Wed", done: true },
-    { day: "Thu", done: true },
-    { day: "Fri", done: true },
-    { day: "Sat", done: false },
-    { day: "Sun", done: false },
-  ],
-};
+interface BattleWithDetails {
+  id: string;
+  challenger_id: string;
+  opponent_id: string;
+  problem_id: string;
+  status: string;
+  time_limit_seconds: number;
+  challenger_passed: boolean | null;
+  opponent_passed: boolean | null;
+  winner_id: string | null;
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  challenger?: { username: string; display_name: string | null };
+  opponent?: { username: string; display_name: string | null };
+  problem?: { title: string; difficulty: string };
+}
 
-const challenges = [
-  { id: 1, from: "Kavi", title: "Two Sum", difficulty: "Easy", status: "pending", timeLeft: "2h 30m" },
-  { id: 2, from: "Ravi", title: "Binary Search Tree", difficulty: "Medium", status: "pending", timeLeft: "5h 10m" },
-  { id: 3, from: "Priya", title: "Max Subarray", difficulty: "Easy", status: "completed", result: "won" },
-  { id: 4, from: "Arun", title: "Graph Traversal", difficulty: "Hard", status: "completed", result: "lost" },
-];
+interface FriendProfile {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  total_points: number;
+  current_streak: number;
+  problems_solved: number;
+}
 
-const friends = [
-  { name: "Kavi", points: 2450, streak: 18, online: true, initials: "KV" },
-  { name: "Ravi", points: 2100, streak: 7, online: true, initials: "RV" },
-  { name: "Priya", points: 1980, streak: 22, online: false, initials: "PR" },
-  { name: "Arun", points: 1750, streak: 3, online: false, initials: "AR" },
-  { name: "Deepa", points: 1620, streak: 15, online: true, initials: "DP" },
-];
-
-const leaderboard = [
-  { rank: 1, name: "Priya", points: 4520, badge: "🥇" },
-  { rank: 2, name: "You", points: 3890, badge: "🥈" },
-  { rank: 3, name: "Kavi", points: 3450, badge: "🥉" },
-  { rank: 4, name: "Ravi", points: 2890, badge: "" },
-  { rank: 5, name: "Arun", points: 2340, badge: "" },
-];
+interface LeaderboardEntry {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  total_points: number;
+}
 
 const difficultyColor: Record<string, string> = {
   Easy: "bg-primary/20 text-primary",
