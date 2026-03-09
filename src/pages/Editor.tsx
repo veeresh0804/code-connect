@@ -40,6 +40,7 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import { ProblemDiscussions } from "@/components/ProblemDiscussions";
 
 type Language = "python" | "c" | "cpp" | "java";
 
@@ -813,6 +814,20 @@ const EditorPage = () => {
                   </p>
                 </div>
               </div>
+            )}
+            {/* Problem Discussions */}
+            {problemId && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-card/50 rounded-lg border border-border/60 overflow-hidden"
+              >
+                <ProblemDiscussions
+                  problemId={problemId}
+                  userId={user?.id || null}
+                />
+              </motion.div>
             )}
           </div>
         </motion.div>

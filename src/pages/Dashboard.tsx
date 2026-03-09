@@ -29,46 +29,42 @@ import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { NotificationBell } from "@/components/NotificationBell";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// Mock data
-const streakData = {
-  current: 12,
-  longest: 34,
-  todaySolved: true,
-  weekDays: [
-    { day: "Mon", done: true },
-    { day: "Tue", done: true },
-    { day: "Wed", done: true },
-    { day: "Thu", done: true },
-    { day: "Fri", done: true },
-    { day: "Sat", done: false },
-    { day: "Sun", done: false },
-  ],
-};
+interface BattleWithDetails {
+  id: string;
+  challenger_id: string;
+  opponent_id: string;
+  problem_id: string;
+  status: string;
+  time_limit_seconds: number;
+  challenger_passed: boolean | null;
+  opponent_passed: boolean | null;
+  winner_id: string | null;
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  challenger?: { username: string; display_name: string | null };
+  opponent?: { username: string; display_name: string | null };
+  problem?: { title: string; difficulty: string };
+}
 
-const challenges = [
-  { id: 1, from: "Kavi", title: "Two Sum", difficulty: "Easy", status: "pending", timeLeft: "2h 30m" },
-  { id: 2, from: "Ravi", title: "Binary Search Tree", difficulty: "Medium", status: "pending", timeLeft: "5h 10m" },
-  { id: 3, from: "Priya", title: "Max Subarray", difficulty: "Easy", status: "completed", result: "won" },
-  { id: 4, from: "Arun", title: "Graph Traversal", difficulty: "Hard", status: "completed", result: "lost" },
-];
+interface FriendProfile {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  total_points: number;
+  current_streak: number;
+  problems_solved: number;
+}
 
-const friends = [
-  { name: "Kavi", points: 2450, streak: 18, online: true, initials: "KV" },
-  { name: "Ravi", points: 2100, streak: 7, online: true, initials: "RV" },
-  { name: "Priya", points: 1980, streak: 22, online: false, initials: "PR" },
-  { name: "Arun", points: 1750, streak: 3, online: false, initials: "AR" },
-  { name: "Deepa", points: 1620, streak: 15, online: true, initials: "DP" },
-];
-
-const leaderboard = [
-  { rank: 1, name: "Priya", points: 4520, badge: "🥇" },
-  { rank: 2, name: "You", points: 3890, badge: "🥈" },
-  { rank: 3, name: "Kavi", points: 3450, badge: "🥉" },
-  { rank: 4, name: "Ravi", points: 2890, badge: "" },
-  { rank: 5, name: "Arun", points: 2340, badge: "" },
-];
+interface LeaderboardEntry {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  total_points: number;
+}
 
 const difficultyColor: Record<string, string> = {
   Easy: "bg-primary/20 text-primary",
@@ -79,13 +75,160 @@ const difficultyColor: Record<string, string> = {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, profile, brainScore, loading, signOut } = useAuthContext();
+  const [battles, setBattles] = useState<BattleWithDetails[]>([]);
+  const [friends, setFriends] = useState<FriendProfile[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [streakData, setStreakData] = useState({
+    current: 0,
+    longest: 0,
+    todaySolved: false,
+    weekDays: [
+      { day: "Mon", done: false },
+      { day: "Tue", done: false },
+      { day: "Wed", done: false },
+      { day: "Thu", done: false },
+      { day: "Fri", done: false },
+      { day: "Sat", done: false },
+      { day: "Sun", done: false },
+    ],
+  });
+  const [loadingData, setLoadingData] = useState(true);
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!loading && !user) {
       navigate("/login");
     }
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      loadDashboardData();
+    }
+  }, [user]);
+
+  const loadDashboardData = async () => {
+    if (!user) return;
+    
+    try {
+      // Load battles - simpler approach without joins for now
+      const battlesRes = await supabase
+        .from("coding_battles")
+        .select("*")
+        .or(`challenger_id.eq.${user.id},opponent_id.eq.${user.id}`)
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      // Load friends - get accepted friendships first, then get profiles
+      const friendshipsRes = await supabase
+        .from("friendships")
+        .select("friend_id")
+        .eq("user_id", user.id)
+        .eq("status", "accepted");
+
+      let friendProfiles: FriendProfile[] = [];
+      if (friendshipsRes.data && friendshipsRes.data.length > 0) {
+        const friendIds = friendshipsRes.data.map(f => f.friend_id);
+        const profilesRes = await supabase
+          .from("profiles")
+          .select("user_id, username, display_name, total_points, current_streak, problems_solved")
+          .in("user_id", friendIds)
+          .order("total_points", { ascending: false })
+          .limit(5);
+        
+        if (profilesRes.data) {
+          friendProfiles = profilesRes.data;
+        }
+      }
+
+      // Load leaderboard
+      const leaderboardRes = await supabase
+        .from("profiles")
+        .select("user_id, username, display_name, total_points")
+        .order("total_points", { ascending: false })
+        .limit(5);
+
+      // Load streak history
+      const streakRes = await supabase
+        .from("streak_history")
+        .select("date, problems_solved")
+        .eq("user_id", user.id)
+        .order("date", { ascending: false })
+        .limit(7);
+
+      // Process battles data
+      if (battlesRes.data) {
+        const battlesWithDetails = await Promise.all(
+          battlesRes.data.map(async (battle) => {
+            // Get challenger profile
+            const challengerRes = await supabase
+              .from("profiles")
+              .select("username, display_name")
+              .eq("user_id", battle.challenger_id)
+              .single();
+
+            // Get opponent profile  
+            const opponentRes = await supabase
+              .from("profiles")
+              .select("username, display_name")
+              .eq("user_id", battle.opponent_id)
+              .single();
+
+            // Get problem details
+            const problemRes = await supabase
+              .from("problems")
+              .select("title, difficulty")
+              .eq("id", battle.problem_id)
+              .single();
+
+            return {
+              ...battle,
+              challenger: challengerRes.data,
+              opponent: opponentRes.data,
+              problem: problemRes.data,
+            };
+          })
+        );
+        setBattles(battlesWithDetails);
+      }
+      
+      setFriends(friendProfiles);
+      
+      if (leaderboardRes.data) setLeaderboard(leaderboardRes.data);
+
+      // Process streak data
+      if (streakRes.data && streakRes.data.length > 0) {
+        const today = new Date().toISOString().split('T')[0];
+        const todayRecord = streakRes.data.find(s => s.date === today);
+        
+        const last7Days = Array.from({ length: 7 }, (_, i) => {
+          const date = new Date();
+          date.setDate(date.getDate() - (6 - i));
+          return date.toISOString().split('T')[0];
+        });
+
+        const weekDays = last7Days.map((date, i) => {
+          const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          const dayOfWeek = new Date(date).getDay();
+          const record = streakRes.data.find(s => s.date === date);
+          return {
+            day: dayNames[dayOfWeek],
+            done: record ? record.problems_solved > 0 : false,
+          };
+        });
+
+        setStreakData({
+          current: profile?.current_streak || 0,
+          longest: profile?.longest_streak || 0,
+          todaySolved: todayRecord ? todayRecord.problems_solved > 0 : false,
+          weekDays,
+        });
+      }
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -93,22 +236,13 @@ const Dashboard = () => {
     navigate("/");
   };
 
-  const displayName = profile?.display_name || profile?.username || "Coder";
+  const displayName = profile?.display_name || profile?.username || "ArivuCoder";
   const initials = displayName.slice(0, 2).toUpperCase();
-  const currentStreak = profile?.current_streak ?? streakData.current;
-  const totalPoints = profile?.total_points ?? 3890;
-  const problemsSolved = profile?.problems_solved ?? 127;
-  const challengesWon = profile?.challenges_won ?? 34;
-  const challengesLost = profile?.challenges_lost ?? 16;
-  const winRate = challengesWon + challengesLost > 0 
-    ? Math.round((challengesWon / (challengesWon + challengesLost)) * 100) 
-    : 68;
-
-  // Brain Score data
-  const brainScoreValue = brainScore?.score ?? 78;
-  const strength = brainScore?.strength ?? "Arrays";
-  const weakness = brainScore?.weakness ?? "Graph algorithms";
-  const codingPersonality = brainScore?.coding_personality ?? "Optimizer";
+  const currentStreak = profile?.current_streak ?? 0;
+  const problemsSolved = profile?.problems_solved ?? 0;
+  const totalPoints = profile?.total_points ?? 0;
+  const challengesWon = profile?.challenges_won ?? 0;
+  const brainScoreValue = brainScore?.score ?? 0;
 
   if (loading) {
     return (
@@ -123,351 +257,390 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Nav */}
-      <header className="h-14 border-b border-border/60 bg-card/50 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 shrink-0 sticky top-0 z-50">
+      <header className="h-14 border-b border-border/60 bg-card/50 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 sticky top-0 z-50">
         <Link to="/" className="flex items-center gap-2">
           <Terminal className="h-5 w-5 text-primary" />
           <span className="font-bold text-sm">Arivu<span className="text-primary">Code</span></span>
         </Link>
-
-        <nav className="hidden md:flex items-center gap-1">
-          {[
-            { label: "Dashboard", href: "/dashboard", icon: TrendingUp, active: true },
-            { label: "Problems", href: "/problems", icon: Code2 },
-            { label: "Battles", href: "/battles", icon: Swords },
-            { label: "Leaderboard", href: "/leaderboard", icon: Trophy },
-            { label: "Feed", href: "/feed", icon: MessageSquare },
-          ].map((item) => (
-            <Link key={item.label} to={item.href}>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className={`text-xs gap-1.5 ${item.active ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                <item.icon className="h-3.5 w-3.5" />
-                {item.label}
-              </Button>
-            </Link>
-          ))}
-        </nav>
-
+        
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 text-sm">
-            <Flame className="h-4 w-4 text-warm" />
-            <span className="font-semibold text-warm">{currentStreak}</span>
-          </div>
           <NotificationBell />
-          <Link to="/profile">
-            <Avatar className="h-8 w-8 border border-primary/30 cursor-pointer hover:border-primary transition-colors">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">{initials}</AvatarFallback>
-            </Avatar>
-          </Link>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleSignOut}>
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </header>
 
-      <main className="container px-4 sm:px-6 py-6 max-w-7xl mx-auto">
-        {/* Welcome */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-1">
-            Welcome back, <span className="text-gradient-primary">{displayName}</span> 👋
-          </h1>
-          <p className="text-muted-foreground text-sm">Keep your streak alive. Solve a challenge today.</p>
+      <main className="container px-4 sm:px-6 py-8 max-w-7xl mx-auto">
+        {/* Welcome Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-8"
+        >
+          <h1 className="text-3xl font-bold mb-2">Welcome back, <span className="text-primary">{displayName}</span>!</h1>
+          <p className="text-muted-foreground text-lg">Ready to solve some problems?</p>
         </motion.div>
 
-        {/* Stats row */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: "Current Streak", value: `${currentStreak} days`, icon: Flame, color: "text-warm" },
-            { label: "Total Points", value: totalPoints.toLocaleString(), icon: Trophy, color: "text-primary" },
-            { label: "Problems Solved", value: problemsSolved.toString(), icon: CheckCircle2, color: "text-primary" },
-            { label: "Win Rate", value: `${winRate}%`, icon: TrendingUp, color: "text-accent" },
-          ].map((stat) => (
-            <Card key={stat.label} className="bg-card/50 border-border/60">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-muted-foreground">{stat.label}</span>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                </div>
-                <p className="text-xl sm:text-2xl font-bold">{stat.value}</p>
-              </CardContent>
-            </Card>
-          ))}
+        {/* Quick Stats */}
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ delay: 0.05 }}
+          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
+        >
+          <Card className="bg-card/50 border-border/60">
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Flame className="h-5 w-5 text-warm" />
+                <span className="text-2xl font-bold">{currentStreak}</span>
+              </div>
+              <p className="text-sm text-muted-foreground">Day Streak</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card/50 border-border/60">
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Code2 className="h-5 w-5 text-primary" />
+                <span className="text-2xl font-bold">{problemsSolved}</span>
+              </div>
+              <p className="text-sm text-muted-foreground">Problems</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card/50 border-border/60">
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Trophy className="h-5 w-5 text-accent" />
+                <span className="text-2xl font-bold">{totalPoints.toLocaleString()}</span>
+              </div>
+              <p className="text-sm text-muted-foreground">Points</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card/50 border-border/60">
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Brain className="h-5 w-5 text-accent" />
+                <span className="text-2xl font-bold">{brainScoreValue}</span>
+              </div>
+              <p className="text-sm text-muted-foreground">Brain Score</p>
+            </CardContent>
+          </Card>
         </motion.div>
 
+        {/* Main Grid */}
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left column */}
+          {/* Left Column */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Brain Score */}
+            {/* Streak Progress */}
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-              <Card className="bg-card/50 border-border/60 overflow-hidden">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Brain className="h-4 w-4 text-accent" />
-                    Brain Score
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-                    {/* Score circle */}
-                    <div className="relative w-28 h-28 mx-auto sm:mx-0">
-                      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(var(--secondary))" strokeWidth="8" />
-                        <circle 
-                          cx="50" cy="50" r="40" fill="none" 
-                          stroke="hsl(var(--accent))" strokeWidth="8" 
-                          strokeDasharray={`${brainScoreValue * 2.51} 251`}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-center">
-                          <span className="text-2xl font-bold text-accent">{brainScoreValue}</span>
-                          <span className="text-xs text-muted-foreground block">/100</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Details */}
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
-                        <Badge variant="secondary" className="bg-accent/20 text-accent text-xs">{codingPersonality}</Badge>
-                        <span className="text-xs text-muted-foreground">Coding Personality</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
-                          <p className="text-[10px] text-muted-foreground mb-0.5">Strength</p>
-                          <p className="text-sm font-medium text-primary">{strength}</p>
-                        </div>
-                        <div className="p-2 rounded-lg bg-warm/5 border border-warm/20">
-                          <p className="text-[10px] text-muted-foreground mb-0.5">Focus Area</p>
-                          <p className="text-sm font-medium text-warm">{weakness}</p>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">Speed</span>
-                          <span>{brainScore?.solve_speed_score ?? 75}%</span>
-                        </div>
-                        <Progress value={brainScore?.solve_speed_score ?? 75} className="h-1.5" />
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">Optimization</span>
-                          <span>{brainScore?.optimization_score ?? 82}%</span>
-                        </div>
-                        <Progress value={brainScore?.optimization_score ?? 82} className="h-1.5" />
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            {/* Streak Calendar */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card className="bg-card/50 border-border/60">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-primary" />
-                    This Week
-                  </CardTitle>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Flame className="h-5 w-5 text-warm" />
+                      Streak Progress
+                    </CardTitle>
+                    <Badge variant="secondary" className="bg-warm/20 text-warm">
+                      {streakData.todaySolved ? "Today Done ✓" : "Solve Today!"}
+                    </Badge>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-7 gap-2">
-                    {streakData.weekDays.map((d) => (
-                      <div key={d.day} className="text-center">
-                        <p className="text-[10px] text-muted-foreground mb-1.5">{d.day}</p>
-                        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg mx-auto flex items-center justify-center transition-all ${d.done ? "bg-primary/20 border border-primary/40" : "bg-muted/30 border border-border/40"}`}>
-                          {d.done ? <Flame className="h-4 w-4 text-primary" /> : <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />}
+                  <div className="flex justify-center gap-2 mb-4">
+                    {streakData.weekDays.map((day, i) => (
+                      <div key={i} className="text-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold mb-1 ${
+                          day.done ? "bg-warm/20 text-warm border border-warm/30" : "bg-secondary/30 text-muted-foreground border border-border"
+                        }`}>
+                          {day.done ? "✓" : ""}
                         </div>
+                        <span className="text-xs text-muted-foreground">{day.day}</span>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Longest streak: <strong className="text-foreground">{profile?.longest_streak ?? streakData.longest} days</strong></span>
-                    <span className="text-primary font-medium">{streakData.todaySolved ? "✓ Today completed" : "⏳ Solve one to keep streak"}</span>
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Current: <span className="font-semibold text-warm">{currentStreak} days</span> • 
+                      Longest: <span className="font-semibold">{streakData.longest} days</span>
+                    </p>
                   </div>
                 </CardContent>
               </Card>
             </motion.div>
 
-            {/* Active Challenges */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-              <Card className="bg-card/50 border-border/60">
-                <CardHeader className="pb-3">
+            {/* Daily Challenge */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+              <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
+                <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Swords className="h-4 w-4 text-accent" />
-                      Challenges
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-primary" />
+                      Daily Challenge
                     </CardTitle>
-                    <Button variant="ghost" size="sm" className="text-xs text-primary gap-1">
-                      <Plus className="h-3 w-3" /> New Challenge
+                    <Badge className="bg-primary/20 text-primary">+20 Bonus</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-lg mb-1">Two Sum Challenge</p>
+                      <p className="text-sm text-muted-foreground mb-3">Find two numbers that add up to target</p>
+                      <Badge className="bg-primary/20 text-primary">Easy</Badge>
+                    </div>
+                    <Button className="glow-primary" asChild>
+                      <Link to="/editor?daily=true">
+                        Start Now <ArrowRight className="h-4 w-4 ml-1" />
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Challenges */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
+              <Card className="bg-card/50 border-border/60">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Swords className="h-5 w-5 text-accent" />
+                      Recent Battles
+                    </CardTitle>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to="/battles" className="text-primary text-sm">
+                        View All <ChevronRight className="h-3 w-3" />
+                      </Link>
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {challenges.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/40 hover:border-primary/20 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-accent/10 text-accent text-xs">{c.from[0]}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm font-medium">{c.title}</p>
-                            <p className="text-xs text-muted-foreground">from {c.from}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className={`text-[10px] ${difficultyColor[c.difficulty]}`}>{c.difficulty}</Badge>
-                          {c.status === "pending" ? (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              {c.timeLeft}
+                    {battles.length === 0 && !loadingData ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">No battles yet</p>
+                    ) : (
+                      battles.slice(0, 3).map((battle) => {
+                        const isChallenger = battle.challenger_id === user?.id;
+                        const opponent = isChallenger ? battle.opponent : battle.challenger;
+                        const opponentName = opponent?.display_name || opponent?.username || "Unknown";
+                        
+                        const getTimeLeft = () => {
+                          if (battle.status !== 'active' || !battle.started_at) return null;
+                          const startTime = new Date(battle.started_at).getTime();
+                          const timeLimit = battle.time_limit_seconds * 1000;
+                          const endTime = startTime + timeLimit;
+                          const now = Date.now();
+                          const remaining = endTime - now;
+                          
+                          if (remaining <= 0) return "Expired";
+                          
+                          const hours = Math.floor(remaining / (1000 * 60 * 60));
+                          const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+                          return `${hours}h ${minutes}m`;
+                        };
+
+                        const getResult = () => {
+                          if (battle.winner_id === user?.id) return "won";
+                          if (battle.winner_id && battle.winner_id !== user?.id) return "lost";
+                          return null;
+                        };
+
+                        return (
+                          <motion.div
+                            key={battle.id}
+                            whileHover={{ scale: 1.01 }}
+                            className="p-3 rounded-lg border border-border/50 bg-card/20 hover:bg-card/40 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-medium">{battle.problem?.title || "Unknown Problem"}</span>
+                                  <Badge className={`text-[10px] px-1.5 py-0.5 ${difficultyColor[battle.problem?.difficulty || "Easy"]}`}>
+                                    {battle.problem?.difficulty || "Easy"}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  vs <span className="text-foreground font-medium">@{opponentName}</span>
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                {battle.status === "pending" || battle.status === "active" ? (
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Clock className="h-3 w-3" />
+                                    {getTimeLeft() || "Waiting"}
+                                  </div>
+                                ) : battle.status === "completed" ? (
+                                  <div className="flex items-center gap-1">
+                                    {getResult() === "won" ? (
+                                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                                    ) : (
+                                      <div className="h-4 w-4 rounded-full bg-muted border border-border" />
+                                    )}
+                                  </div>
+                                ) : null}
+                              </div>
                             </div>
-                          ) : c.result === "won" ? (
-                            <Badge className="bg-primary/20 text-primary text-[10px]">Won ✓</Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-destructive/10 text-destructive text-[10px]">Lost</Badge>
-                          )}
-                          {c.status === "pending" && (
-                            <Link to="/editor">
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
-                                <ChevronRight className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                          </motion.div>
+                        );
+                      })
+                    )}
                   </div>
                 </CardContent>
               </Card>
             </motion.div>
           </div>
 
-          {/* Right column */}
+          {/* Right Column */}
           <div className="space-y-6">
-            {/* Quick Actions */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-              <div className="space-y-2">
-                <Link to="/problems">
-                  <Button className="w-full glow-primary gap-2 justify-start" size="lg">
-                    <Code2 className="h-4 w-4" />
-                    Browse Problems
-                    <ArrowRight className="h-4 w-4 ml-auto" />
-                  </Button>
-                </Link>
-                <Link to="/battles">
-                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
-                    <Swords className="h-4 w-4 text-accent" />
-                    Coding Battles
-                    <ArrowRight className="h-4 w-4 ml-auto" />
-                  </Button>
-                </Link>
-                <Link to="/study-plan">
-                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
-                    <BookOpen className="h-4 w-4 text-primary" />
-                    AI Study Plan
-                    <ArrowRight className="h-4 w-4 ml-auto" />
-                  </Button>
-                </Link>
-                <Link to="/snippets">
-                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
-                    <FileCode className="h-4 w-4 text-accent" />
-                    Code Snippets
-                    <ArrowRight className="h-4 w-4 ml-auto" />
-                  </Button>
-                </Link>
-                <Link to="/badges">
-                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
-                    <Award className="h-4 w-4 text-[hsl(var(--warm))]" />
-                    Achievements
-                    <ArrowRight className="h-4 w-4 ml-auto" />
-                  </Button>
-                </Link>
-                <Link to="/friends">
-                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
-                    <Users className="h-4 w-4 text-primary" />
-                    Friends
-                    <ArrowRight className="h-4 w-4 ml-auto" />
-                  </Button>
-                </Link>
-                <Link to="/leaderboard">
-                  <Button variant="outline" className="w-full gap-2 justify-start border-border/60" size="lg">
-                    <Trophy className="h-4 w-4 text-[hsl(var(--warm))]" />
-                    Leaderboard
-                    <ArrowRight className="h-4 w-4 ml-auto" />
-                  </Button>
-                </Link>
-              </div>
-            </motion.div>
-
-            {/* Leaderboard */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+            {/* Friends */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}>
               <Card className="bg-card/50 border-border/60">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Trophy className="h-4 w-4 text-warm" />
-                    Leaderboard
-                  </CardTitle>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Users className="h-4 w-4 text-accent" />
+                      Friends
+                    </CardTitle>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to="/friends" className="text-primary text-xs">
+                        View All
+                      </Link>
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    {leaderboard.map((u) => (
-                      <div key={u.rank} className={`flex items-center justify-between p-2.5 rounded-lg transition-colors ${u.name === "You" ? "bg-primary/5 border border-primary/20" : "hover:bg-secondary/30"}`}>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-mono w-6 text-center">{u.badge || `#${u.rank}`}</span>
-                          <Avatar className="h-7 w-7">
-                            <AvatarFallback className={`text-[10px] ${u.name === "You" ? "bg-primary/20 text-primary" : "bg-muted"}`}>{u.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <span className={`text-sm ${u.name === "You" ? "font-semibold text-primary" : ""}`}>{u.name}</span>
-                        </div>
-                        <span className="text-xs font-mono text-muted-foreground">{u.points.toLocaleString()}</span>
-                      </div>
-                    ))}
+                  <div className="space-y-3">
+                    {friends.length === 0 && !loadingData ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        <Link to="/friends" className="text-primary hover:underline">
+                          Connect with friends
+                        </Link>
+                      </p>
+                    ) : (
+                      friends.slice(0, 4).map((friend, i) => {
+                        const displayName = friend.display_name || friend.username;
+                        const initials = displayName.slice(0, 2).toUpperCase();
+                        
+                        return (
+                          <motion.div
+                            key={friend.user_id}
+                            whileHover={{ scale: 1.01 }}
+                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/20 transition-all cursor-pointer"
+                          >
+                            <div className="relative">
+                              <Avatar className="h-8 w-8 border border-border/50">
+                                <AvatarFallback className="bg-secondary text-xs font-medium">
+                                  {initials}
+                                </AvatarFallback>
+                              </Avatar>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{displayName}</p>
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                <span>{friend.total_points} pts</span>
+                                <span className="flex items-center gap-1">
+                                  <Flame className="h-3 w-3 text-warm" />
+                                  {friend.current_streak}
+                                </span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })
+                    )}
                   </div>
                 </CardContent>
               </Card>
             </motion.div>
 
-            {/* Friends */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            {/* Leaderboard */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
               <Card className="bg-card/50 border-border/60">
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base flex items-center gap-2">
-                      <Users className="h-4 w-4 text-primary" />
-                      Friends
+                      <Trophy className="h-4 w-4 text-primary" />
+                      Leaderboard
                     </CardTitle>
-                    <Button variant="ghost" size="sm" className="text-xs text-primary gap-1">
-                      <Plus className="h-3 w-3" /> Add
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to="/leaderboard" className="text-primary text-xs">
+                        View All
+                      </Link>
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {friends.slice(0, 4).map((f) => (
-                      <div key={f.name} className="flex items-center justify-between p-2 rounded-lg hover:bg-secondary/30 transition-colors">
-                        <div className="flex items-center gap-2.5">
-                          <div className="relative">
-                            <Avatar className="h-7 w-7">
-                              <AvatarFallback className="bg-accent/10 text-accent text-[10px]">{f.initials}</AvatarFallback>
-                            </Avatar>
-                            {f.online && <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-card" />}
+                    {leaderboard.map((entry, index) => {
+                      const isCurrentUser = entry.user_id === user?.id;
+                      const displayName = entry.display_name || entry.username;
+                      const rank = index + 1;
+                      const badge = rank <= 3 ? ["👑", "🥈", "🥉"][rank - 1] : "";
+                      
+                      return (
+                        <motion.div
+                          key={entry.user_id}
+                          whileHover={{ scale: 1.01 }}
+                          className={`flex items-center gap-3 p-2 rounded-lg transition-all cursor-pointer ${
+                            isCurrentUser
+                              ? "bg-primary/10 border border-primary/20"
+                              : "hover:bg-secondary/20"
+                          }`}
+                        >
+                          <div className="w-6 text-center">
+                            <span className="text-lg">{badge || `#${rank}`}</span>
                           </div>
-                          <div>
-                            <p className="text-sm font-medium leading-none">{f.name}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">{f.points.toLocaleString()} pts</p>
+                          <div className="flex-1">
+                            <p className={`text-sm font-medium ${isCurrentUser ? "text-primary" : ""}`}>
+                              {isCurrentUser ? "You" : displayName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{entry.total_points.toLocaleString()} points</p>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-warm">
-                          <Flame className="h-3 w-3" />
-                          {f.streak}
-                        </div>
-                      </div>
-                    ))}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Quick Actions */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+              <Card className="bg-card/50 border-border/60">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-accent" />
+                    Quick Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" size="sm" className="h-auto p-3 flex-col gap-1" asChild>
+                      <Link to="/problems">
+                        <Code2 className="h-4 w-4" />
+                        <span className="text-xs">Problems</span>
+                      </Link>
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-auto p-3 flex-col gap-1" asChild>
+                      <Link to="/battles">
+                        <Swords className="h-4 w-4" />
+                        <span className="text-xs">Battle</span>
+                      </Link>
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-auto p-3 flex-col gap-1" asChild>
+                      <Link to="/study-plan">
+                        <BookOpen className="h-4 w-4" />
+                        <span className="text-xs">Study</span>
+                      </Link>
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-auto p-3 flex-col gap-1" asChild>
+                      <Link to="/snippets">
+                        <FileCode className="h-4 w-4" />
+                        <span className="text-xs">Snippets</span>
+                      </Link>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
